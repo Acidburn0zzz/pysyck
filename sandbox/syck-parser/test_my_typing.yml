@@ -1,0 +1,9 @@
+
+- !int '123'
+- !yamltype 'foo'
+- !python/type 'bar'
+- !domain.tld,2002/type 'baz'
+- !!private 'private'
+- !map {}
+- !seq []
+

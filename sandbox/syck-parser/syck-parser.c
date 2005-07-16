@@ -40,15 +40,15 @@ SyckNode *copy_node(SyckNode *n)
     if (n->type_id) {
         m->type_id = strdup(n->type_id);
     }
-    else {
+/*    else {
         m->type_id = strdup("");
-    }
+    }*/
     if (n->anchor) {
         m->anchor = strdup(n->anchor);
     }
-    else {
+/*    else {
         m->anchor = strdup("");
-    }
+    }*/
 
     return m;
 }
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     syck_parser_file(p, stream, NULL);
 
     syck_parser_handler(p, node_handler);
-    syck_parser_error_handler(p, error_handler);
+//    syck_parser_error_handler(p, error_handler);
     syck_parser_bad_anchor_handler(p, bad_anchor_handler);
 
     output(0, "Stream '%s':", argv[1]);
