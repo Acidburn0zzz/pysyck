@@ -162,13 +162,11 @@ class TestTypes(unittest.TestCase):
     def testParserType(self):
         parser = _syck.Parser(EXAMPLE)
         self.assertEqual(type(parser), _syck.ParserType)
-        parser.close()
 
     def testNodeType(self):
         parser = _syck.Parser(EXAMPLE)
         document = parser.parse()
         self.assertEqual(type(document), _syck.NodeType)
-        parser.close()
 
     def testNodeType2(self):
         self.assertRaises(TypeError, (lambda: _syck.Node()))
@@ -178,7 +176,6 @@ class TestErrors(unittest.TestCase):
     def testError(self):
         parser = _syck.Parser(INVALID[0])
         self.assertRaises(_syck.error, (lambda: parser.parse()))
-        parser.close()
 
     def testErrorLocation(self):
         source, line, column = INVALID
@@ -190,7 +187,25 @@ class TestErrors(unittest.TestCase):
             self.assertEqual(e.args[1], line)
             self.assertEqual(e.args[2], column)
 
-class TestValuesAndSources(unittest.TestCase):
+class EqualStructure:
+
+    def assertEqualStructure(self, node, structure):
+        if node.kind == 'scalar':
+            self.assertEqual(type(structure), str)
+            self.assertEqual(node.value, structure)
+        elif node.kind == 'seq':
+            self.assertEqual(type(structure), list)
+            self.assertEqual(len(node.value), len(structure))
+            for i, item in enumerate(node.value):
+                self.assertEqualStructure(item, structure[i])
+        elif node.kind == 'map':
+            self.assertEqual(type(structure), dict)
+            self.assertEqual(len(node.value), len(structure))
+            for key in node.value:
+                self.assert_(key.value in structure)
+                self.assertEqualStructure(node.value[key], structure[key.value])
+
+class TestValuesAndSources(unittest.TestCase, EqualStructure):
 
     def testValues1(self):
         self._testValues(COMPARE1)
@@ -213,35 +228,73 @@ class TestValuesAndSources(unittest.TestCase):
     def testNonsense(self):
         parser = _syck.Parser(None)
         self.assertRaises(AttributeError, (lambda: parser.parse()))
-        parser.close()
 
     def _testValues(self, (source, structure)):
         parser = _syck.Parser(source)
         document = parser.parse()
         self.assertEqualStructure(document, structure)
-        parser.close()
 
     def _testFileValues(self, (source, structure)):
         parser = _syck.Parser(StringIO.StringIO(source))
         document = parser.parse()
         self.assertEqualStructure(document, structure)
-        parser.close()
 
-    def assertEqualStructure(self, node, structure):
-        if node.kind == 'scalar':
-            self.assertEqual(type(structure), str)
-            self.assertEqual(node.value, structure)
-        elif node.kind == 'seq':
-            self.assertEqual(type(structure), list)
-            self.assertEqual(len(node.value), len(structure))
-            for i, item in enumerate(node.value):
-                self.assertEqualStructure(item, structure[i])
-        elif node.kind == 'map':
-            self.assertEqual(type(structure), dict)
-            self.assertEqual(len(node.value), len(structure))
-            for key in node.value:
-                self.assert_(key.value in structure)
-                self.assertEqualStructure(node.value[key], structure[key.value])
+class TestResolver(unittest.TestCase, EqualStructure):
+
+    object = 12345
+
+    def object_resolver(self, node):
+        return self.object
+
+    def simple_resolver(self, node):
+        return node.value
+
+    def default_resolver(self, node):
+        return node
+
+    def call_me_not_resolver(self, node):
+        self.call_me_not_parser.parse()
+        return node
+
+    def testResolver1(self):
+        self._testResolver(COMPARE1)
+
+    def testResolver2(self):
+        self._testResolver(COMPARE2)
+
+    def testResolver3(self):
+        self._testResolver(COMPARE3)
+
+    def testCallMeNot(self):
+        self.call_me_not_parser = _syck.Parser(EXAMPLE, self.call_me_not_resolver)
+        self.assertRaises(RuntimeError, (lambda: self.call_me_not_parser.parse()))
+        del self.call_me_not_parser
+
+    def _testResolver(self, compare):
+        self._testObject(compare)
+        self._testSimple(compare)
+        self._testDefault(compare)
+        self._testNone(compare)
+
+    def _testObject(self, (source, structure)):
+        parser = _syck.Parser(source, self.object_resolver)
+        document = parser.parse()
+        self.assert_(document is self.object)
+
+    def _testSimple(self, (source, structure)):
+        parser = _syck.Parser(source, self.simple_resolver)
+        document = parser.parse()
+        self.assert_(document, structure)
+
+    def _testDefault(self, (source, structure)):
+        parser = _syck.Parser(source, resolver=self.default_resolver)
+        document = parser.parse()
+        self.assertEqualStructure(document, structure)
+
+    def _testNone(self, (source, structure)):
+        parser = _syck.Parser(source, resolver=None)
+        document = parser.parse()
+        self.assertEqualStructure(document, structure)
 
 class TestDocuments(unittest.TestCase):
 
@@ -259,15 +312,18 @@ class TestDocuments(unittest.TestCase):
 
     def _testDocuments(self, source, length):
         parser = _syck.Parser(source)
-        documents = parser.parse_documents()
-        self.assertEqual(len(documents), length)
-        parser.close()
-        parser = _syck.Parser(source)
-        for k in range(length):
+        actual_length = 0
+        while True:
             document = parser.parse()
-            self.assert_(document)
+            if parser.eof():
+                self.assertEqual(document, None)
+                break
+            actual_length += 1
+        self.assertEqual(actual_length, length)
         self.assertEqual(parser.parse(), None)
-        parser.close()
+        self.assert_(parser.eof())
+        self.assertEqual(parser.parse(), None)
+        self.assert_(parser.eof())
 
 class TestImplicitTyping(unittest.TestCase):
 
@@ -284,7 +340,7 @@ class TestImplicitTyping(unittest.TestCase):
         self._testTyping(False, False)
 
     def _testTyping(self, implicit_typing, taguri_expansion):
-        parser = _syck.Parser(IMPLICIT_TYPING[0], implicit_typing, taguri_expansion)
+        parser = _syck.Parser(IMPLICIT_TYPING[0], None, implicit_typing, taguri_expansion)
         for node, (type_id, explicit) in zip(parser.parse().value, IMPLICIT_TYPING[1]):
             if type_id is not None and taguri_expansion:
                 type_id = 'tag:yaml.org,2002:%s' % type_id

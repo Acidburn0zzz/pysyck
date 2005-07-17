@@ -137,11 +137,26 @@ static char PySyck_Node_doc[] =
 typedef struct {
     PyObject_HEAD
     PyObject *source;
-/*    PyObject *resolver;*/
+    PyObject *resolver;
     PyObject *symbols;
     SyckParser *syck;
     int error;
 } PySyckParserObject;
+
+static void
+PySyckParser_free(PySyckParserObject *parser)
+{
+    Py_XDECREF(parser->source);
+    parser->source = NULL;
+    Py_XDECREF(parser->resolver);
+    parser->resolver = NULL;
+    Py_XDECREF(parser->symbols);
+    parser->symbols = NULL;
+    if (parser->syck) {
+        syck_free_parser(parser->syck);
+        parser->syck = NULL;
+    }
+}
 
 static PyObject *
 PySyckParser_parse(PySyckParserObject *parser, PyObject *args)
@@ -153,7 +168,12 @@ PySyckParser_parse(PySyckParserObject *parser, PyObject *args)
         return NULL;
 
     if (!parser->syck) {
-        PyErr_SetString(PyExc_TypeError, "Parser object is closed");
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    if (parser->symbols) {
+        PyErr_SetString(PyExc_RuntimeError, "do not call Parser.parse while it is running");
         return NULL;
     }
 
@@ -163,22 +183,23 @@ PySyckParser_parse(PySyckParserObject *parser, PyObject *args)
     }
 
     index = syck_parse(parser->syck);
-    if (!parser->error && !parser->syck->eof) {
-        value = PyList_GetItem(parser->symbols, index-1);
-    }
-
-    Py_DECREF(parser->symbols);
 
     if (parser->error) {
-        parser->error = 0;
+        PySyckParser_free(parser);
         return NULL;
     }
 
     if (parser->syck->eof) {
+        PySyckParser_free(parser);
         Py_INCREF(Py_None);
         return Py_None;
     }
-    
+
+    value = PyList_GetItem(parser->symbols, index);
+
+    Py_DECREF(parser->symbols);
+    parser->symbols = NULL;
+
     return value;
 }
 
@@ -186,101 +207,32 @@ static char PySyckParser_parse_doc[] =
     "Parses the next document in the YAML stream, return the root Node object or None on EOF.";
 
 static PyObject *
-PySyckParser_parse_documents(PySyckParserObject *parser, PyObject *args)
+PySyckParser_eof(PySyckParserObject *parser, PyObject *args)
 {
-    SYMID index;
-    PyObject *value = NULL;
-    PyObject *documents = NULL;
+    PyObject *value;
 
-    if (!PyArg_ParseTuple(args, ":parse_document"))
+    if (!PyArg_ParseTuple(args, ":eof"))
         return NULL;
 
-    if (!parser->syck) {
-        PyErr_SetString(PyExc_TypeError, "Parser object is closed");
-        return NULL;
-    }
+    value = parser->syck ? Py_False : Py_True;
 
-    documents = PyList_New(0);
-    if (!documents) return NULL;
-
-    while (1) {
-
-        parser->symbols = PyList_New(0);
-        if (!parser->symbols) {
-            Py_DECREF(documents);
-            return NULL;
-        };
-
-        index = syck_parse(parser->syck);
-
-        if (!parser->error && !parser->syck->eof) {
-            value = PyList_GetItem(parser->symbols, index-1);
-            if (!value) {
-                Py_DECREF(parser->symbols);
-                Py_DECREF(documents);
-                return NULL;
-            }
-            if (PyList_Append(documents, value) < 0) {
-                Py_DECREF(parser->symbols);
-                Py_DECREF(value);
-                Py_DECREF(documents);
-                return NULL;
-            }
-            Py_DECREF(value);
-        }
-
-        Py_DECREF(parser->symbols);
-
-        if (parser->error) {
-            parser->error = 0;
-            Py_DECREF(documents);
-            return NULL;
-        }
-
-        if (parser->syck->eof) break;
-    }
-
-    return documents;
+    Py_INCREF(value);
+    return value;
 }
 
-static char PySyckParser_parse_documents_doc[] =
-    "Parses the entire YAML stream and returns list of documents.";
-
-static PyObject *
-PySyckParser_close(PySyckParserObject *parser, PyObject *args)
-{
-    if (!PyArg_ParseTuple(args, ":close"))
-        return NULL;
-
-    Py_XDECREF(parser->source);
-    parser->source = NULL;
-
-    if (parser->syck) {
-        syck_free_parser(parser->syck);
-    }
-    parser->syck = NULL;
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static char PySyckParser_close_doc[] =
-    "Closes the parser and frees memory";
+static char PySyckParser_eof_doc[] =
+    "Checks if the parser is stopped.";
 
 static PyMethodDef PySyckParser_methods[] = {
     {"parse",  (PyCFunction)PySyckParser_parse, METH_VARARGS, PySyckParser_parse_doc},
-    {"parse_documents",  (PyCFunction)PySyckParser_parse_documents, METH_VARARGS, PySyckParser_parse_documents_doc},
-    {"close",  (PyCFunction)PySyckParser_close, METH_VARARGS, PySyckParser_close_doc},
+    {"eof",  (PyCFunction)PySyckParser_eof, METH_VARARGS, PySyckParser_eof_doc},
     {NULL}  /* Sentinel */
 };
 
 static void
 PySyckParser_dealloc(PySyckParserObject *parser)
 {
-    Py_XDECREF(parser->source);
-    if (parser->syck) {
-        syck_free_parser(parser->syck);
-    }
+    PySyckParser_free(parser);
     PyObject_Del(parser);
 }
 
@@ -390,7 +342,7 @@ PySyckParser_node_handler(SyckParser *syck, SyckNode *node)
     int k;
 
     if (parser->error)
-        return 0;
+        return -1;
 
     switch (node->kind) {
 
@@ -405,7 +357,7 @@ PySyckParser_node_handler(SyckParser *syck, SyckNode *node)
             if (!object) goto error;
             for (k = 0; k < node->data.list->idx; k++) {
                 index = syck_seq_read(node, k);
-                item = PyList_GetItem(parser->symbols, index-1);
+                item = PyList_GetItem(parser->symbols, index);
                 if (!item) goto error;
                 Py_INCREF(item);
                 PyList_SET_ITEM(object, k, item);
@@ -418,10 +370,10 @@ PySyckParser_node_handler(SyckParser *syck, SyckNode *node)
             for (k = 0; k < node->data.pairs->idx; k++)
             {
                 index = syck_map_read(node, map_key, k);
-                key = PyList_GetItem(parser->symbols, index-1);
+                key = PyList_GetItem(parser->symbols, index);
                 if (!key) goto error;
                 index = syck_map_read(node, map_value, k);
-                value = PyList_GetItem(parser->symbols, index-1);
+                value = PyList_GetItem(parser->symbols, index);
                 if (!value) goto error;
                 if (PyDict_SetItem(object, key, value) < 0)
                     goto error;
@@ -432,16 +384,23 @@ PySyckParser_node_handler(SyckParser *syck, SyckNode *node)
     object = PySyckNode_New(node->type_id, object);
     if (!object) goto error;
 
+    if (parser->resolver) {
+        value = PyObject_CallFunction(parser->resolver, "(O)", object);
+        if (!value) goto error;
+        Py_DECREF(object);
+        object = value;
+    }
+
     if (PyList_Append(parser->symbols, object) < 0)
         goto error;
 
-    index = PyList_Size(parser->symbols);
+    index = PyList_Size(parser->symbols)-1;
     return index;
 
 error:
     Py_XDECREF(object);
     parser->error = 1;
-    return 0;
+    return -1;
 }
 
 static void
@@ -465,22 +424,30 @@ PySyck_Parser(PyObject *self, PyObject *args, PyObject *kwds)
 {
     PySyckParserObject *parser;
     PyObject *source;
+    PyObject *resolver = NULL;
     int implicit_typing = 1;
     int taguri_expansion = 1;
 
-    static char *kwdlist[] = {"source", "implicit_typing", "taguri_expansion", NULL};
+    static char *kwdlist[] = {"source", "resolver", "implicit_typing", "taguri_expansion", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ii", kwdlist,
-                &source, &implicit_typing, &taguri_expansion))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Oii", kwdlist,
+                &source, &resolver, &implicit_typing, &taguri_expansion))
         return NULL;
 
     parser = PyObject_NEW(PySyckParserObject, &PySyckParser_Type);
     if (!parser)
         return NULL;
 
+    parser->error = 0;
+    parser->symbols = NULL;
+
     Py_INCREF(source);
     parser->source = source;
-    parser->error = 0;
+
+    if (resolver == Py_None)
+        resolver = NULL;
+    Py_XINCREF(resolver);
+    parser->resolver = resolver;
 
     parser->syck = syck_new_parser();
     parser->syck->bonus = parser;
@@ -497,7 +464,7 @@ PySyck_Parser(PyObject *self, PyObject *args, PyObject *kwds)
     syck_parser_handler(parser->syck, PySyckParser_node_handler);
     syck_parser_error_handler(parser->syck, PySyckParser_error_handler);
     /*
-    syck_parser_bad_anchor_handler(parser, _syck_Parser_bad_anchor_handler);
+    syck_parser_bad_anchor_handler(parser, PySyckParser_bad_anchor_handler);
     */
 
     return (PyObject *)parser;
