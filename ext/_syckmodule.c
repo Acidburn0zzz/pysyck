@@ -243,12 +243,11 @@ PySyckParser_getattr(PySyckParserObject *parser, char *name)
 }
 
 static char PySyckParser_doc[] =
-    "_syck.Parser(yaml_string_or_file, implicit_typing=True, taguri_expansion=True) -> Parser object\n"
+    "_syck.Parser(yaml_string_or_file, resolver=None, implicit_typing=True, taguri_expansion=True) -> Parser object\n"
     "\n"
     "Methods of the Parser object:\n\n"
     "parse() -- Parses the next document in the YAML stream, return the root Node object or None on EOF.\n"
-    "parse_documents() -- Parses the entire YAML stream and returns list of documents.\n"
-    "close() -- Closes the parser and frees memory.\n";
+    "eof() -- Checks if the parser is stopped.\n";
 
 static PyTypeObject PySyckParser_Type = {
     PyObject_HEAD_INIT(NULL)
