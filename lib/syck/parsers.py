@@ -1,5 +1,9 @@
 
-import _syck, re, datetime
+import _syck, re, datetime, sets
+
+__all__ = ['error', 'GenericParser', 'Parser']
+
+error = _syck.error
 
 class GenericParser:
 
@@ -25,6 +29,12 @@ class GenericParser:
                 break
             yield value
 
+class Merge:
+    pass
+
+class Default:
+    pass
+
 class Parser(GenericParser):
 
     inf_value = 1e300000
@@ -38,12 +48,14 @@ class Parser(GenericParser):
                 r'[ \t]*(?:Z|(?P<zhour>[+-]\d\d)(?::(?P<zminute>\d\d))?)?'
             r')?')
 
+    merge_key = Merge()
+    default_key = Default()
+
     def __init__(self):
         self.tags = {}
-        self.add_scalar_builtin_types()
-        self.add_collection_builtin_types()
+        self.add_builtin_types()
 
-    def add_scalar_builtin_types(self):
+    def add_builtin_types(self):
         self.add_builtin_type('null', lambda node: None)
         self.add_builtin_type('bool#yes', lambda node: True)
         self.add_builtin_type('bool#no', lambda node: False)
@@ -62,9 +74,11 @@ class Parser(GenericParser):
         self.add_builtin_type('timestamp#iso8601', self.transfer_timestamp)
         self.add_builtin_type('timestamp#spaced', self.transfer_timestamp)
         self.add_builtin_type('timestamp', self.transfer_timestamp)
-
-    def add_collection_builtin_types(self):
-        pass
+        self.add_builtin_type('merge', self.transfer_merge)
+        self.add_builtin_type('default', self.transfer_default)
+        self.add_builtin_type('omap', self.transfer_omap)
+        self.add_builtin_type('pairs', self.transfer_pairs)
+        self.add_builtin_type('set', self.transfer_set)
 
     def add_type(self, type_tag, transfer):
         self.tags[type_tag] = transfer
@@ -82,6 +96,8 @@ class Parser(GenericParser):
         self.tags['x-private:'+type_tag] = transfer
 
     def resolve(self, node):
+        if node.kind == 'map' and self.merge_key in node.value:
+            self.merge_maps(node)
         if node.type_id in self.tags:
             return self.tags[node.type_id](node)
         else:
@@ -122,6 +138,38 @@ class Parser(GenericParser):
         stamp = datetime.datetime(values['year'], values['month'], values['day'],
                 values['hour'], values['minute'], values['second'], micro)
         diff = datetime.timedelta(hours=values['zhour'], minutes=values['zminute'])
-        print "DIFF =", diff
         return stamp-diff
+
+    def transfer_merge(self, node):
+        return self.merge_key
+
+    def transfer_default(self, node):
+        return self.default_key
+
+    def merge_maps(self, node):
+        maps = node.value[self.merge_key]
+        del node.value[self.merge_key]
+        if not isinstance(maps, list):
+            maps = [maps]
+        maps.reverse()
+        maps.append(node.value.copy())
+        for item in maps:
+            node.value.update(item)
+
+    def transfer_omap(self, node):
+        omap = []
+        for mapping in node.value:
+            for key in mapping:
+                omap.append((key, mapping[key]))
+        return omap
+
+    def transfer_pairs(self, node): # Same as transfer_omap.
+        pairs = []
+        for mapping in node.value:
+            for key in mapping:
+                pairs.append((key, mapping[key]))
+        return pairs
+
+    def transfer_set(self, node):
+        return sets.Set(node.value)
 

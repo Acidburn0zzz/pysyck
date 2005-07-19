@@ -2,7 +2,7 @@
 import unittest
 import syck
 import test_low_parser
-import os, mx.DateTime, datetime
+import os, mx.DateTime, datetime, sets
 
 INF = 1e300000
 NAN = INF/INF
@@ -21,6 +21,93 @@ BINARY = r"""
   +f/++f/++f/++f/++f/++SH+Dk1hZGUgd2l0aCBHSU1QACwAAAAADAAMAAAFLC
   AgjoEwnuNAFOhpEMTRiggcz4BNJHrv/zCFcLiwMWYNG84BwwEeECcgggoBADs=
 """
+
+MERGE = """
+---
+- &CENTER { x: 1, y: 2 }
+- &LEFT { x: 0, y: 2 }
+- &BIG { r: 10 }
+- &SMALL { r: 1 }
+
+# All the following maps are equal:
+
+- # Explicit keys
+  x: 1
+  y: 2
+  r: 10
+  label: center/big
+
+- # Merge one map
+  << : *CENTER
+  r: 10
+  label: center/big
+
+- # Merge multiple maps
+  << : [ *CENTER, *BIG ]
+  label: center/big
+
+- # Override
+  << : [ *BIG, *LEFT, *SMALL ]
+  x: 1
+  label: center/big
+""", { 'x': 1, 'y': 2, 'r': 10, 'label': 'center/big' }
+
+OMAP = """
+# Explicitly typed ordered map (dictionary).
+Bestiary: !omap
+  - aardvark: African pig-like ant eater. Ugly.
+  - anteater: South-American ant eater. Two species.
+  - anaconda: South-American constrictor snake. Scaly.
+  # Etc.
+# Flow style
+Numbers: !omap [ one: 1, two: 2, three : 3 ]
+""", {
+    'Bestiary': [
+        ('aardvark', 'African pig-like ant eater. Ugly.'),
+        ('anteater', 'South-American ant eater. Two species.'),
+        ('anaconda', 'South-American constrictor snake. Scaly.'),
+    ],
+    'Numbers': [
+        ('one', 1),
+        ('two', 2),
+        ('three', 3),
+    ],
+}
+
+PAIRS = """
+# Explicitly typed pairs.
+Block tasks: !pairs
+  - meeting: with team.
+  - meeting: with boss.
+  - break: lunch.
+  - meeting: with client.
+Flow tasks: !pairs [ meeting: with team, meeting: with boss ]
+""", {
+    'Block tasks': [
+        ('meeting', 'with team.'),
+        ('meeting', 'with boss.'),
+        ('break', 'lunch.'),
+        ('meeting', 'with client.'),
+    ],
+    'Flow tasks': [
+        ('meeting', 'with team'),
+        ('meeting', 'with boss'),
+    ],
+}
+
+SET = """
+# Syck does not understand it
+## Explicitly typed set.
+#baseball players: !set
+#  ? Mark McGwire
+#  ? Sammy Sosa
+#  ? Ken Griffey
+# Flow style
+baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
+""", {
+#    'baseball players': sets.Set(['Mark McGwire', 'Sammy Sosa', 'Ken Griffey']),
+    'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
+}
 
 class TestDocuments(test_low_parser.TestDocuments):
 
@@ -132,4 +219,24 @@ class TestImplicitScalars(unittest.TestCase):
 
     def testString(self):
         self.assertEqual('abcd', 'abcd')
+
+class TestMerge(unittest.TestCase):
+
+    def testMerge(self):
+        document = syck.load(MERGE[0])
+        self.assertEqual(document[4], MERGE[1])
+        self.assertEqual(document[5], MERGE[1])
+        self.assertEqual(document[6], MERGE[1])
+        self.assertEqual(document[7], MERGE[1])
+
+class TestCollections(unittest.TestCase):
+
+    def testOmap(self):
+        self.assertEqual(syck.load(OMAP[0]), OMAP[1])
+
+    def testPairs(self):
+        self.assertEqual(syck.load(PAIRS[0]), PAIRS[1])
+
+    def testSet(self):
+        self.assertEqual(syck.load(SET[0]), SET[1])
 
