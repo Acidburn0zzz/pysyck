@@ -2,7 +2,22 @@
 import unittest
 import syck
 import test_low_parser
-import os, mx.DateTime, datetime, sets
+import os
+
+try:
+    import datetime
+except ImportError:
+    pass
+
+try:
+    import mx.DateTime
+except ImportError:
+    pass
+
+try:
+    import sets
+except ImportError:
+    pass
 
 INF = 1e300000
 NAN = INF/INF

@@ -1,5 +1,15 @@
 
-import _syck, re, datetime, sets
+import _syck, re
+
+try:
+    import datetime
+except ImportError:
+    pass
+
+try:
+    import sets
+except ImportError:
+    pass
 
 __all__ = ['error', 'GenericParser', 'Parser']
 

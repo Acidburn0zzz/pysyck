@@ -484,7 +484,8 @@ static char PySyck_doc[] =
     "This module provides low-level access to the Syck parser and emitter.\n"
     "Do not use this module directly, use the package 'syck' instead.\n";
 
-PyMODINIT_FUNC
+/* PyMODINIT_FUNC - does not work with versions <2.3 */
+void
 init_syck(void)
 {
     PyObject *m;
