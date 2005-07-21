@@ -110,7 +110,9 @@ Flow tasks: !pairs [ meeting: with team, meeting: with boss ]
     ],
 }
 
-SET = """
+try:
+    import sets
+    SET = """
 # Syck does not understand it
 ## Explicitly typed set.
 #baseball players: !set
@@ -123,6 +125,8 @@ baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
 #    'baseball players': sets.Set(['Mark McGwire', 'Sammy Sosa', 'Ken Griffey']),
     'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
 }
+except ImportError:
+    pass
 
 class TestDocuments(test_low_parser.TestDocuments):
 

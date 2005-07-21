@@ -5,6 +5,13 @@ import _syck
 
 import StringIO
 
+try:
+    True
+    False
+except:
+    True = (1==1)
+    False = (1!=1)
+
 EXAMPLE = """
 -
   avg: 0.278

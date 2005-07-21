@@ -11,6 +11,13 @@ try:
 except ImportError:
     pass
 
+try:
+    True
+    False
+except:
+    True = (1==1)
+    False = (1!=1)
+
 __all__ = ['error', 'GenericParser', 'Parser']
 
 error = _syck.error
@@ -37,7 +44,7 @@ class GenericParser:
             value = syck_parser.parse()
             if syck_parser.eof():
                 break
-            yield value
+            yield (value)
 
 class Merge:
     pass
