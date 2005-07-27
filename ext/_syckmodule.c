@@ -2,7 +2,20 @@
 #include <Python.h>
 #include <syck.h>
 
-/* Global objects. */
+/* Python 2.2 compatibility. */
+
+#ifndef PyDoc_STR
+#define PyDoc_VAR(name)         static char name[]
+#define PyDoc_STR(str)          (str)
+#define PyDoc_STRVAR(name, str) PyDoc_VAR(name) = PyDoc_STR(str)
+#endif
+
+#ifndef PyMODINIT_FUNC
+#define PyMODINIT_FUNC  void
+#endif
+
+/* Global objects: _syck.error, 'scalar', 'seq', 'map',
+    '1quote', '2quote', 'fold', 'literal', 'plain', '+', '-'. */
 
 static PyObject *PySyck_Error;
 
@@ -10,8 +23,497 @@ static PyObject *PySyck_ScalarKind;
 static PyObject *PySyck_SeqKind;
 static PyObject *PySyck_MapKind;
 
-/* Node type. */
+static PyObject *PySyck_1QuoteStyle;
+static PyObject *PySyck_2QuoteStyle;
+static PyObject *PySyck_FoldStyle;
+static PyObject *PySyck_LiteralStyle;
+static PyObject *PySyck_PlainStyle;
 
+static PyObject *PySyck_StripChomp;
+static PyObject *PySyck_KeepChomp;
+
+/* The type _syck.Node. */
+
+PyDoc_STRVAR(PySyckNode_doc,
+    "The base Node type\n\n"
+    "_syck.Node is an abstract type. It is a base type for _syck.Scalar,\n"
+    "_syck.Seq, and _syck.Map. You cannot create an instance of _syck.Node\n"
+    "directly. You may use _syck.Node for type checking.\n");
+
+static PyTypeObject PySyckNode_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Node",                               /* tp_name */
+    sizeof(PyObject),                           /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    0,                                          /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,     /* tp_flags */
+    PySyckNode_doc,                             /* tp_doc */
+};
+
+/* The type _syck.Scalar */
+
+PyDoc_STRVAR(PySyckScalar_doc,
+    "The Scalar node type\n\n"
+    "_syck.Scalar represents a scalar node in Syck parser and emitter\n"
+    "graph. A scalar node points to a single string value.\n\n"
+    "Attributes:\n\n"
+    "kind -- always 'scalar'; read-only\n"
+    "value -- the node value, a string\n"
+    "tag -- the node tag; a string or None\n"
+    "anchor -- the name of the node anchor or None; read-only\n"
+    "style -- the node style; None (means literal or plain),\n"
+    "         '1quote', '2quote', 'fold', 'literal', 'plain'\n"
+    "indent -- indentation, an integer; 0 means default\n"
+    "width -- the preferred width; 0 means default\n"
+    "chomp -- None (clip), '-' (strip), or '+' (keep)\n");
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *value;
+    PyObject *tag;
+    PyObject *anchor;
+    enum scalar_style style;
+    int indent;
+    int width;
+    char chomp;
+} PySyckScalarObject;
+
+static int
+PySyckScalar_clear(PySyckScalarObject *self)
+{
+    Py_XDECREF(self->value);
+    self->value = NULL;
+    Py_XDECREF(self->tag);
+    self->tag = NULL;
+    Py_XDECREF(self->anchor);
+    self->anchor = NULL;
+
+    return 0;
+}
+
+static int
+PySyckScalar_traverse(PySyckScalarObject *self, visitproc visit, void *arg)
+{
+    if (self->value && visit(self->value, arg) < 0)
+        return -1;
+    if (self->tag && visit(self->tag, arg) < 0)
+        return -1;
+    if (self->anchor && visit(self->anchor, arg) < 0)
+        return -1;
+
+    return 0;
+}
+
+static void
+PySyckScalar_dealloc(PySyckScalarObject *self)
+{
+    PySyckScalar_clear(self);
+    self->ob_type->tp_free((PyObject *)self);
+}
+
+static PyObject *
+PySyckScalar_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckScalarObject *self;
+
+    self = (PySyckScalarObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->value = PyString_FromString("");
+    if (!self->value) {
+        Py_DECREF(self);
+        return NULL;
+    }
+
+    self->tag = NULL;
+    self->anchor = NULL;
+    self->style = scalar_none;
+    self->indent = 0;
+    self->width = 0;
+    self->chomp = 0;
+
+    return (PyObject *)self;
+}
+
+static PyObject *
+PySyckScalar_getkind(PySyckScalarObject *self, void *closure)
+{
+    Py_INCREF(PySyck_ScalarKind);
+    return PySyck_ScalarKind;
+}
+
+static PyObject *
+PySyckScalar_getvalue(PySyckScalarObject *self, void *closure)
+{
+    Py_INCREF(self->value);
+    return self->value;
+}
+
+static int
+PySyckScalar_setvalue(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
+        return -1;
+    }
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'value' must be a string");
+        return -1;
+    }
+
+    Py_DECREF(self->value);
+    Py_INCREF(value);
+    self->value = value;
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_gettag(PySyckScalarObject *self, void *closure)
+{
+    PyObject *value = self->tag ? self->tag : Py_None;
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckScalar_settag(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'tag'");
+        return -1;
+    }
+
+    if (value == Py_None) {
+        Py_XDECREF(self->tag);
+        self->tag = NULL;
+        return 0;
+    }
+
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'tag' must be a string");
+        return -1;
+    }
+
+    Py_XDECREF(self->tag);
+    Py_INCREF(value);
+    self->tag = value;
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_getanchor(PySyckScalarObject *self, void *closure)
+{
+    PyObject *value = self->anchor ? self->anchor : Py_None;
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckScalar_setanchor(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'anchor'");
+        return -1;
+    }
+
+    if (value == Py_None) {
+        Py_XDECREF(self->anchor);
+        self->anchor = NULL;
+        return 0;
+    }
+
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'anchor' must be a string");
+        return -1;
+    }
+
+    Py_XDECREF(self->anchor);
+    Py_INCREF(value);
+    self->anchor = value;
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_getstyle(PySyckScalarObject *self, void *closure)
+{
+    PyObject *value;
+
+    switch (self->style) {
+        case scalar_1quote: value = PySyck_1QuoteStyle; break;
+        case scalar_2quote: value = PySyck_2QuoteStyle; break;
+        case scalar_fold: value = PySyck_FoldStyle; break;
+        case scalar_literal: value = PySyck_LiteralStyle; break;
+        case scalar_plain: value = PySyck_PlainStyle; break;
+        default: value = Py_None;
+    }
+
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckScalar_setstyle(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    char *str;
+
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'style'");
+        return -1;
+    }
+
+    if (value == Py_None) {
+        self->style = scalar_none;
+        return 0;
+    }
+
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'style' must be a string or None");
+        return -1;
+    }
+
+    str = PyString_AsString(value);
+    if (!str) return -1;
+
+    if (strcmp(str, "1quote") == 0)
+        self->style = scalar_1quote;
+    else if (strcmp(str, "2quote") == 0)
+        self->style = scalar_2quote;
+    else if (strcmp(str, "fold") == 0)
+        self->style = scalar_fold;
+    else if (strcmp(str, "literal") == 0)
+        self->style = scalar_literal;
+    else if (strcmp(str, "plain") == 0)
+        self->style = scalar_plain;
+    else {
+        PyErr_SetString(PyExc_TypeError, "unknown 'style'");
+        return -1;
+    }
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_getindent(PySyckScalarObject *self, void *closure)
+{
+    return PyInt_FromLong(self->indent);
+}
+
+static int
+PySyckScalar_setindent(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'indent'");
+        return -1;
+    }
+
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'indent' must be an integer");
+        return -1;
+    }
+
+    self->indent = PyInt_AS_LONG(value);
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_getwidth(PySyckScalarObject *self, void *closure)
+{
+    return PyInt_FromLong(self->width);
+}
+
+static int
+PySyckScalar_setwidth(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'width'");
+        return -1;
+    }
+
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'width' must be an integer");
+        return -1;
+    }
+
+    self->width = PyInt_AS_LONG(value);
+
+    return 0;
+}
+
+static PyObject *
+PySyckScalar_getchomp(PySyckScalarObject *self, void *closure)
+{
+    PyObject *value;
+
+    switch (self->chomp) {
+        case NL_CHOMP: value = PySyck_StripChomp; break;
+        case NL_KEEP: value = PySyck_KeepChomp; break;
+        default: value = Py_None;
+    }
+
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckScalar_setchomp(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    char *str;
+
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'chomp'");
+        return -1;
+    }
+
+    if (value == Py_None) {
+        self->chomp = 0;
+        return 0;
+    }
+
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'chomp' must be '+', '-', or None");
+        return -1;
+    }
+
+    str = PyString_AsString(value);
+    if (!str) return -1;
+
+    if (strcmp(str, "-") == 0)
+        self->chomp = NL_CHOMP;
+    else if (strcmp(str, "+") == 0)
+        self->chomp = NL_KEEP;
+    else {
+        PyErr_SetString(PyExc_TypeError, "'chomp' must be '+', '-', or None");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+PySyckScalar_init(PySyckScalarObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *value = NULL;
+    PyObject *tag = NULL;
+    PyObject *anchor = NULL;
+    PyObject *style = NULL;
+    PyObject *indent = NULL;
+    PyObject *width = NULL;
+    PyObject *chomp = NULL;
+
+    static char *kwdlist[] = {"value", "tag", "anchor",
+        "style", "indent", "width", "chomp", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOO", kwdlist,
+                &value, &tag, &anchor, &style, &indent, &width, &chomp))
+        return -1;
+
+    if (value && PySyckScalar_setvalue(self, value, NULL) < 0)
+        return -1;
+
+    if (tag && PySyckScalar_settag(self, tag, NULL) < 0)
+        return -1;
+
+    if (anchor && PySyckScalar_setanchor(self, anchor, NULL) < 0)
+        return -1;
+
+    if (style && PySyckScalar_setstyle(self, style, NULL) < 0)
+        return -1;
+
+    if (indent && PySyckScalar_setindent(self, indent, NULL) < 0)
+        return -1;
+
+    if (width && PySyckScalar_setwidth(self, width, NULL) < 0)
+        return -1;
+
+    if (chomp && PySyckScalar_setchomp(self, chomp, NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+static PyGetSetDef PySyckScalar_getsetters[] = {
+    {"kind", (getter)PySyckScalar_getkind, NULL,
+        "the node kind", NULL},
+    {"value", (getter)PySyckScalar_getvalue, (setter)PySyckScalar_setvalue,
+        "the node value", NULL},
+    {"tag", (getter)PySyckScalar_gettag, (setter)PySyckScalar_settag,
+        "the node tag", NULL},
+    {"anchor", (getter)PySyckScalar_getanchor, (setter)PySyckScalar_setanchor,
+        "the node anchor", NULL},
+    {"style", (getter)PySyckScalar_getstyle, (setter)PySyckScalar_setstyle,
+        "the node style", NULL},
+    {"indent", (getter)PySyckScalar_getindent, (setter)PySyckScalar_setindent,
+        "the field indentation", NULL},
+    {"width", (getter)PySyckScalar_getwidth, (setter)PySyckScalar_setwidth,
+        "the field width", NULL},
+    {"chomp", (getter)PySyckScalar_getchomp, (setter)PySyckScalar_setchomp,
+        "the chomping method", NULL},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PySyckScalar_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Scalar",                             /* tp_name */
+    sizeof(PySyckScalarObject),                 /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    (destructor)PySyckScalar_dealloc,           /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckScalar_doc,                           /* tp_doc */
+    (traverseproc)PySyckScalar_traverse,        /* tp_traverse */
+    (inquiry)PySyckScalar_clear,                /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    0,                                          /* tp_methods */
+    0,                                          /* tp_members */
+    PySyckScalar_getsetters,                    /* tp_getset */
+    &PySyckNode_Type,                           /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)PySyckScalar_init,                /* tp_init */
+    0,                                          /* tp_alloc */
+    PySyckScalar_new,                           /* tp_new */
+};
+
+
+/*
 typedef struct {
     PyObject_HEAD
     PyObject *kind;
@@ -48,14 +550,10 @@ PySyckNode_getattr(PySyckNodeObject *self, char *name)
     return value;
 }
 
-static char PySyckNode_doc[] =
-    "Node object\n"
-    "\n"
-    "Attributes of the Node object:\n\n"
-    "kind -- 'scalar', 'seq', or 'map'.\n"
-    "type_id -- the tag of the node.\n"
-    "value -- the value of the node, a string, list or dict object.\n";
 
+*/
+#if 0
+    
 static PyTypeObject PySyckNode_Type = {
     PyObject_HEAD_INIT(NULL)
     0,                                  /* ob_size */
@@ -131,6 +629,9 @@ PySyck_Node(PyObject *self, PyObject *args)
 
 static char PySyck_Node_doc[] =
     "Node object cannot be created explicitly. Use _syck.Parser.parse() instead.";
+
+
+*/
 
 /* Parser type. */
 
@@ -521,4 +1022,65 @@ init_syck(void)
     if (PyModule_AddObject(m, "ParserType", (PyObject *)&PySyckParser_Type) < 0)
         return;
 }
+
+#endif
+
+/* The module _syck. */
+
+static PyMethodDef PySyck_methods[] = {
+    {NULL}  /* Sentinel */
+};
+
+PyDoc_STRVAR(PySyck_doc,
+    "The low-level wrapper for the Syck YAML parser and emitter\n\n"
+    "Types:\n\n"
+    "Node -- the base Node type\n");
+
+PyMODINIT_FUNC
+init_syck(void)
+{
+    PyObject *m;
+
+    if (PyType_Ready(&PySyckNode_Type) < 0)
+        return;
+    if (PyType_Ready(&PySyckScalar_Type) < 0)
+        return;
+    
+    PySyck_Error = PyErr_NewException("_syck.error", NULL, NULL);
+    if (!PySyck_Error) return;
+
+    PySyck_ScalarKind = PyString_FromString("scalar");
+    if (!PySyck_ScalarKind) return;
+    PySyck_SeqKind = PyString_FromString("seq");
+    if (!PySyck_SeqKind) return;
+    PySyck_MapKind = PyString_FromString("map");
+    if (!PySyck_MapKind) return;
+
+    PySyck_1QuoteStyle = PyString_FromString("1quote");
+    if (!PySyck_1QuoteStyle) return;
+    PySyck_2QuoteStyle = PyString_FromString("2quote");
+    if (!PySyck_2QuoteStyle) return;
+    PySyck_FoldStyle = PyString_FromString("fold");
+    if (!PySyck_FoldStyle) return;
+    PySyck_LiteralStyle = PyString_FromString("literal");
+    if (!PySyck_LiteralStyle) return;
+    PySyck_PlainStyle = PyString_FromString("plain");
+    if (!PySyck_PlainStyle) return;
+
+    PySyck_StripChomp = PyString_FromString("-");
+    if (!PySyck_StripChomp) return;
+    PySyck_KeepChomp = PyString_FromString("+");
+    if (!PySyck_KeepChomp) return;
+
+    m = Py_InitModule3("_syck", PySyck_methods, PySyck_doc);
+
+    Py_INCREF(&PySyckNode_Type);
+    if (PyModule_AddObject(m, "Node", (PyObject *)&PySyckNode_Type) < 0)
+        return;
+
+    Py_INCREF(&PySyckScalar_Type);
+    if (PyModule_AddObject(m, "Scalar", (PyObject *)&PySyckScalar_Type) < 0)
+        return;
+}
+
 
