@@ -41,10 +41,10 @@ static PyObject *PySyck_KeepChomp;
  ****************************************************************************/
 
 PyDoc_STRVAR(PySyckNode_doc,
-    "The base Node type\n\n"
+    "_syck.Node() -> TypeError\n\n"
     "_syck.Node is an abstract type. It is a base type for _syck.Scalar,\n"
     "_syck.Seq, and _syck.Map. You cannot create an instance of _syck.Node\n"
-    "directly. You may use _syck.Node for type checking.\n");
+    "directly. You may use _syck.Node for type checking or subclassing.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -219,17 +219,7 @@ PyDoc_STRVAR(PySyckScalar_doc,
     "Scalar(value='', tag=None, style=None, indent=0, width=0, chomp=None)\n"
     "      -> a Scalar node\n\n"
     "_syck.Scalar represents a scalar node in Syck parser and emitter\n"
-    "graphs. A scalar node points to a single string value.\n\n"
-    "Attributes:\n\n"
-    "kind -- always 'scalar'; read-only\n"
-    "value -- the node value, a string\n"
-    "tag -- the node tag; a string or None\n"
-    "anchor -- the name of the node anchor or None; read-only\n"
-    "style -- the node style; None (means literal or plain),\n"
-    "         '1quote', '2quote', 'fold', 'literal', 'plain'\n"
-    "indent -- indentation, an integer; 0 means default\n"
-    "width -- the preferred width; 0 means default\n"
-    "chomp -- None (clip), '-' (strip), or '+' (keep)\n");
+    "graphs. A scalar node points to a single string value.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -488,21 +478,24 @@ PySyckScalar_init(PySyckScalarObject *self, PyObject *args, PyObject *kwds)
 
 static PyGetSetDef PySyckScalar_getsetters[] = {
     {"kind", (getter)PySyckNode_getkind, NULL,
-        "the node kind", &PySyck_ScalarKind},
+        PyDoc_STR("the node kind, always 'scalar', read-only"),
+        &PySyck_ScalarKind},
     {"value", (getter)PySyckNode_getvalue, (setter)PySyckScalar_setvalue,
-        "the node value", NULL},
+        PyDoc_STR("the node value, a string"), NULL},
     {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
-        "the node tag", NULL},
+        PyDoc_STR("the node tag, a string or None"), NULL},
     {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
-        "the node anchor", NULL},
+        PyDoc_STR("the node anchor, a string or None"), NULL},
     {"style", (getter)PySyckScalar_getstyle, (setter)PySyckScalar_setstyle,
-        "the node style", NULL},
+        PyDoc_STR("the node style, values: None (means literal or plain),\n"
+            "'1quote', '2quote', 'fold', 'literal', 'plain'"), NULL},
     {"indent", (getter)PySyckScalar_getindent, (setter)PySyckScalar_setindent,
-        "the field indentation", NULL},
+        PyDoc_STR("the node indentation, an integer"), NULL},
     {"width", (getter)PySyckScalar_getwidth, (setter)PySyckScalar_setwidth,
-        "the field width", NULL},
+        PyDoc_STR("the node width, an integer"), NULL},
     {"chomp", (getter)PySyckScalar_getchomp, (setter)PySyckScalar_setchomp,
-        "the chomping method", NULL},
+        PyDoc_STR("the chomping method,\n"
+            "values: None (clip), '-' (strip), or '+' (keep)"), NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -555,13 +548,7 @@ static PyTypeObject PySyckScalar_Type = {
 PyDoc_STRVAR(PySyckSeq_doc,
     "Seq(value=[], tag=None, inline=False) -> a Seq node\n\n"
     "_syck.Seq represents a sequence node in Syck parser and emitter\n"
-    "graphs. A sequence node points to an ordered set of subnodes.\n\n"
-    "Attributes:\n\n"
-    "kind -- always 'seq'; read-only\n"
-    "value -- the node value, a list\n"
-    "tag -- the node tag; a string or None\n"
-    "anchor -- the name of the node anchor or None; read-only\n"
-    "inline -- is the node inline? False or True\n");
+    "graphs. A sequence node points to an ordered set of subnodes.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -671,15 +658,15 @@ PySyckSeq_init(PySyckSeqObject *self, PyObject *args, PyObject *kwds)
 
 static PyGetSetDef PySyckSeq_getsetters[] = {
     {"kind", (getter)PySyckNode_getkind, NULL,
-        "the node kind", &PySyck_SeqKind},
+        PyDoc_STR("the node kind, always 'seq', read-only"), &PySyck_SeqKind},
     {"value", (getter)PySyckNode_getvalue, (setter)PySyckSeq_setvalue,
-        "the node value", NULL},
+        PyDoc_STR("the node value, a sequence"), NULL},
     {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
-        "the node tag", NULL},
+        PyDoc_STR("the node tag, a string or None"), NULL},
     {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
-        "the node anchor", NULL},
+        PyDoc_STR("the node anchor, a string or None"), NULL},
     {"inline", (getter)PySyckSeq_getinline, (setter)PySyckSeq_setinline,
-        "the node style", NULL},
+        PyDoc_STR("the block/flow flag"), NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -732,13 +719,7 @@ static PyTypeObject PySyckSeq_Type = {
 PyDoc_STRVAR(PySyckMap_doc,
     "Map(value='', tag=None, inline=False) -> a Map node\n\n"
     "_syck.Map represents a mapping node in Syck parser and emitter\n"
-    "graphs. A mapping node points to an unordered collections of pairs.\n\n"
-    "Attributes:\n\n"
-    "kind -- always 'map'; read-only\n"
-    "value -- the node value, a dictionary\n"
-    "tag -- the node tag; a string or None\n"
-    "anchor -- the name of the node anchor or None; read-only\n"
-    "inline -- is the node inline? False or True\n");
+    "graphs. A mapping node points to an unordered collections of pairs.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -848,15 +829,15 @@ PySyckMap_init(PySyckMapObject *self, PyObject *args, PyObject *kwds)
 
 static PyGetSetDef PySyckMap_getsetters[] = {
     {"kind", (getter)PySyckNode_getkind, NULL,
-        "the node kind", &PySyck_MapKind},
+        PyDoc_STR("the node kind, always 'map', read-only"), &PySyck_MapKind},
     {"value", (getter)PySyckNode_getvalue, (setter)PySyckMap_setvalue,
-        "the node value", NULL},
+        PyDoc_STR("the node value, a mapping"), NULL},
     {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
-        "the node tag", NULL},
+        PyDoc_STR("the node tag, a string or None"), NULL},
     {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
-        "the node anchor", NULL},
+        PyDoc_STR("the node anchor, a string or None"), NULL},
     {"inline", (getter)PySyckMap_getinline, (setter)PySyckMap_setinline,
-        "the node style", NULL},
+        PyDoc_STR("the block/flow flag"), NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -902,72 +883,457 @@ static PyTypeObject PySyckMap_Type = {
     PySyckMap_new,                              /* tp_new */
 };
 
+/****************************************************************************
+ * The type _syck.Parser.
+ ****************************************************************************/
 
-/*
+PyDoc_STRVAR(PySyckParser_doc,
+    "Parser(source, implicit_typing=True, taguri_expansion=True)\n"
+    "      -> a Parser object\n\n"
+    "_syck.Parser is a low-lever wrapper of the Syck parser. It parses\n"
+    "a YAML stream and produces a graph of Nodes.\n");
+
 typedef struct {
     PyObject_HEAD
-    PyObject *kind;
-    PyObject *type_id;
-    PyObject *value;
-} PySyckNodeObject;
+    /* Attributes: */
+    PyObject *source;       /* a string or file-like object */
+    int implicit_typing;
+    int taguri_expansion;
+    /* Internal fields: */
+    PyObject *symbols;      /* symbol table, a list, NULL outside parse() */
+    SyckParser *parser;
+    int parsing;
+    int halt;
+} PySyckParserObject;
+
+static PyObject *
+PySyckParser_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckParserObject *self;
+
+    self = (PySyckParserObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->source = NULL;
+    self->implicit_typing = 0;
+    self->taguri_expansion = 0;
+    self->symbols = NULL;
+    self->parser = NULL;
+    self->parsing = 0;
+    self->halt = 1;
+
+    /*
+    self->symbols = PyList_New(0);
+    if (!self->symbols) {
+        Py_DECREF(self);
+        return NULL;
+    }
+    */
+
+    return (PyObject *)self;
+}
+
+static int
+PySyckParser_clear(PySyckParserObject *self)
+{
+    PyObject *tmp;
+
+    if (self->parser) {
+        syck_free_parser(self->parser);
+        self->parser = NULL;
+    }
+
+    tmp = self->source;
+    self->source = NULL;
+    Py_XDECREF(tmp);
+
+    tmp = self->symbols;
+    self->symbols = NULL;
+    Py_XDECREF(tmp);
+
+    return 0;
+}
+
+static int
+PySyckParser_traverse(PySyckParserObject *self, visitproc visit, void *arg)
+{
+    int ret;
+
+    if (self->source)
+        if ((ret = visit(self->source, arg)) != 0)
+            return ret;
+
+    if (self->symbols)
+        if ((ret = visit(self->symbols, arg)) != 0)
+            return ret;
+
+    return 0;
+}
 
 static void
-PySyckNode_dealloc(PySyckNodeObject *self)
+PySyckParser_dealloc(PySyckParserObject *self)
 {
-    Py_XDECREF(self->kind);
-    Py_XDECREF(self->type_id);
-    Py_XDECREF(self->value);
-    PyObject_Del(self);
+    PySyckParser_clear(self);
+    self->ob_type->tp_free((PyObject *)self);
 }
 
 static PyObject *
-PySyckNode_getattr(PySyckNodeObject *self, char *name)
+PySyckParser_getsource(PySyckParserObject *self, void *closure)
 {
-    PyObject *value;
-
-    if (strcmp(name, "kind") == 0)
-        value = self->kind;
-    else if (strcmp(name, "type_id") == 0)
-        value = self->type_id;
-    else if (strcmp(name, "value") == 0)
-        value = self->value;
-    else {
-        PyErr_SetString(PyExc_AttributeError, name);
-        return NULL;
-    }
+    PyObject *value = self->source ? self->source : Py_None;
 
     Py_INCREF(value);
     return value;
 }
 
+static PyObject *
+PySyckParser_getimplicit_typing(PySyckParserObject *self, void *closure)
+{
+    PyObject *value = self->implicit_typing ? Py_True : Py_False;
 
-*/
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckParser_gettaguri_expansion(PySyckParserObject *self, void *closure)
+{
+    PyObject *value = self->taguri_expansion ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckParser_geteof(PySyckParserObject *self, void *closure)
+{
+    PyObject *value = self->halt ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyGetSetDef PySyckParser_getsetters[] = {
+    {"source", (getter)PySyckParser_getsource, NULL,
+        PyDoc_STR("IO source, a string or file-like object"), NULL},
+    {"implicit_typing", (getter)PySyckParser_getimplicit_typing, NULL,
+        PyDoc_STR("implicit typing of builtin YAML types"), NULL},
+    {"taguri_expansion", (getter)PySyckParser_gettaguri_expansion, NULL,
+        PyDoc_STR("expansion of types in full taguri"), NULL},
+    {"eof", (getter)PySyckParser_geteof, NULL,
+        PyDoc_STR("EOF flag"), NULL},
+    {NULL}  /* Sentinel */
+};
+
+static SYMID
+PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
+{
+    PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
+
+    SYMID index;
+    PySyckNodeObject *object = NULL;
+
+    PyObject *key, *value;
+    int k;
+
+    if (self->halt)
+        return -1;
+
+    switch (node->kind) {
+
+        case syck_str_kind:
+            object = (PySyckNodeObject *)
+                PySyckScalar_new(&PySyckScalar_Type, NULL, NULL);
+            if (!object) goto error;
+            value = PyString_FromStringAndSize(node->data.str->ptr,
+                    node->data.str->len);
+            if (!value) goto error;
+            Py_DECREF(object->value);
+            object->value = value;
+            break;
+
+        case syck_seq_kind:
+            object = (PySyckNodeObject *)
+                PySyckSeq_new(&PySyckSeq_Type, NULL, NULL);
+            if (!object) goto error;
+            for (k = 0; k < node->data.list->idx; k++) {
+                index = syck_seq_read(node, k);
+                value = PyList_GetItem(self->symbols, index);
+                if (!value) goto error;
+                if (PyList_Append(object->value, value) < 0)
+                    goto error;
+            }
+            break;
+
+        case syck_map_kind:
+            object = (PySyckNodeObject *)
+                PySyckMap_new(&PySyckMap_Type, NULL, NULL);
+            if (!object) goto error;
+            for (k = 0; k < node->data.pairs->idx; k++)
+            {
+                index = syck_map_read(node, map_key, k);
+                key = PyList_GetItem(self->symbols, index);
+                if (!key) goto error;
+                index = syck_map_read(node, map_value, k);
+                value = PyList_GetItem(self->symbols, index);
+                if (!value) goto error;
+                if (PyDict_SetItem(object->value, key, value) < 0)
+                    goto error;
+            }
+            break;
+    }
+
+    if (node->type_id) {
+        object->tag = PyString_FromString(node->type_id);
+        if (!object->tag) goto error;
+    }
+
+    if (node->anchor) {
+        object->anchor = PyString_FromString(node->anchor);
+        if (!object->anchor) goto error;
+    }
+
+    if (PyList_Append(self->symbols, (PyObject *)object) < 0)
+        goto error;
+
+    index = PyList_GET_SIZE(self->symbols)-1;
+    return index;
+
+error:
+    Py_XDECREF(object);
+    self->halt = 1;
+    return -1;
+}
+
+static void
+PySyckParser_error_handler(SyckParser *parser, char *str)
+{
+    PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
+    PyObject *value;
+
+    if (self->halt) return;
+
+    self->halt = 1;
+
+    value = Py_BuildValue("(sii)", str,
+            parser->linect, parser->cursor - parser->lineptr);
+    if (value) {
+        PyErr_SetObject(PySyck_Error, value);
+    }
+}
+
+static long
+PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
+{
+    PySyckParserObject *self = (PySyckParserObject *)file->ptr;
+
+    PyObject *value;
+
+    char *str;
+    int length;
+
+    buf[skip] = '\0';
+
+    if (self->halt) {
+        return skip;
+    }
+    
+    max_size -= skip;
+
+    value = PyObject_CallMethod(self->source, "read", "(i)", max_size);
+    if (!value) {
+        self->halt = 1;
+        return skip;
+    }
+
+    if (!PyString_CheckExact(value)) {
+        Py_DECREF(value);
+        PyErr_SetString(PyExc_TypeError, "file-like object should return a string");
+        self->halt = 1;
+        
+        return skip;
+    }
+
+    str = PyString_AS_STRING(value);
+    length = PyString_GET_SIZE(value);
+    if (!length) {
+        Py_DECREF(value);
+        return skip;
+    }
+
+    if (length > max_size) {
+        Py_DECREF(value);
+        PyErr_SetString(PyExc_ValueError, "read returns an overly long string");
+        self->halt = 1;
+        return skip;
+    }
+
+    memcpy(buf+skip, str, length);
+    length += skip;
+    buf[length] = '\0';
+
+    Py_DECREF(value);
+
+    return length;
+}
+
+static int
+PySyckParser_init(PySyckParserObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *source = NULL;
+    int implicit_typing = 1;
+    int taguri_expansion = 1;
+
+    static char *kwdlist[] = {"source", "implicit_typing", "taguri_expansion",
+        NULL};
+
+    PySyckParser_clear(self);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ii", kwdlist,
+                &source, &implicit_typing, &taguri_expansion))
+        return -1;
+
+    Py_INCREF(source);
+    self->source = source;
+
+    self->implicit_typing = implicit_typing;
+    self->taguri_expansion = taguri_expansion;
+
+    self->parser = syck_new_parser();
+    self->parser->bonus = self;
+
+    if (PyString_CheckExact(self->source)) {
+        syck_parser_str(self->parser,
+                PyString_AS_STRING(self->source),
+                PyString_GET_SIZE(self->source), NULL);
+    }
+    /*
+    else if (PyUnicode_CheckExact(self->source)) {
+        syck_parser_str(self->parser,
+                PyUnicode_AS_DATA(self->source),
+                PyString_GET_DATA_SIZE(self->source), NULL);
+    }
+    */
+    else {
+        syck_parser_file(self->parser, (FILE *)self, PySyckParser_read_handler);
+    }
+
+    syck_parser_implicit_typing(self->parser, self->implicit_typing);
+    syck_parser_taguri_expansion(self->parser, self->taguri_expansion);
+
+    syck_parser_handler(self->parser, PySyckParser_node_handler);
+    syck_parser_error_handler(self->parser, PySyckParser_error_handler);
+    /*
+    syck_parser_bad_anchor_handler(parser, PySyckParser_bad_anchor_handler);
+    */
+
+    self->parsing = 0;
+    self->halt = 0;
+
+    return 0;
+}
+
+static PyObject *
+PySyckParser_parse(PySyckParserObject *self)
+{
+    SYMID index;
+    PyObject *value;
+
+    if (self->parsing) {
+        PyErr_SetString(PyExc_RuntimeError, "do not call Parser.parse while it is already parsing");
+        return NULL;
+    }
+
+    if (self->halt) {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    self->symbols = PyList_New(0);
+    if (!self->symbols) {
+        return NULL;
+    }
+
+    self->parsing = 1;
+    index = syck_parse(self->parser);
+    self->parsing = 0;
+
+    if (self->halt || self->parser->eof) {
+        Py_DECREF(self->symbols);
+        self->symbols = NULL;
+
+        if (self->halt) return NULL;
+
+        self->halt = 1;
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    value = PyList_GetItem(self->symbols, index);
+
+    Py_DECREF(self->symbols);
+    self->symbols = NULL;
+
+    return value;
+}
+
+PyDoc_STRVAR(PySyckParser_parse_doc,
+    "parse() -> the root Node object\n\n"
+    "Parses the source and returns the next document. On EOF, returns None\n"
+    "and sets the 'eof' attribute on.\n");
+
+static PyMethodDef PySyckParser_methods[] = {
+    {"parse",  (PyCFunction)PySyckParser_parse,
+        METH_NOARGS, PySyckParser_parse_doc},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PySyckParser_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Parser",                             /* tp_name */
+    sizeof(PySyckParserObject),                 /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    (destructor)PySyckParser_dealloc,           /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckParser_doc,                           /* tp_doc */
+    (traverseproc)PySyckParser_traverse,        /* tp_traverse */
+    (inquiry)PySyckParser_clear,                /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    PySyckParser_methods,                       /* tp_methods */
+    0,                                          /* tp_members */
+    PySyckParser_getsetters,                    /* tp_getset */
+    0,                                          /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)PySyckParser_init,                /* tp_init */
+    0,                                          /* tp_alloc */
+    PySyckParser_new,                           /* tp_new */
+};
+
+
+
 #if 0
     
-static PyTypeObject PySyckNode_Type = {
-    PyObject_HEAD_INIT(NULL)
-    0,                                  /* ob_size */
-    "_syck.Node",                       /* tp_name */
-    sizeof(PySyckNodeObject),           /* tp_basicsize */
-    0,                                  /* tp_itemsize */
-    (destructor)PySyckNode_dealloc,     /* tp_dealloc */
-    0,                                  /* tp_print */
-    (getattrfunc)PySyckNode_getattr,    /* tp_getattr */
-    0,                                  /* tp_setattr */
-    0,                                  /* tp_compare */
-    0,                                  /* tp_repr */
-    0,                                  /* tp_as_number */
-    0,                                  /* tp_as_sequence */
-    0,                                  /* tp_as_mapping */
-    0,                                  /* tp_hash */
-    0,                                  /* tp_call */
-    0,                                  /* tp_str */
-    0,                                  /* tp_getattro */
-    0,                                  /* tp_setattro */
-    0,                                  /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,                 /* tp_flags */
-    PySyckNode_doc,                     /* tp_doc */
-};
 
 static PyObject *
 PySyckNode_New(char *type_id, PyObject *value) /* Note: steals the reference to the value. */
@@ -1006,22 +1372,6 @@ PySyckNode_New(char *type_id, PyObject *value) /* Note: steals the reference to 
 
     return (PyObject *)self;
 }
-
-static PyObject *
-PySyck_Node(PyObject *self, PyObject *args)
-{
-    if (!PyArg_ParseTuple(args, ":_syck.Node"))
-        return NULL;
-
-    PyErr_SetString(PyExc_TypeError, "Node object cannot be created explicitly. Use _syck.Parser.parse() instead.");
-    return NULL;
-}
-
-static char PySyck_Node_doc[] =
-    "Node object cannot be created explicitly. Use _syck.Parser.parse() instead.";
-
-
-*/
 
 /* Parser type. */
 
@@ -1165,60 +1515,6 @@ static PyTypeObject PySyckParser_Type = {
     PySyckParser_doc,                   /* tp_doc */
 };
 
-static long
-PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
-{
-    PySyckParserObject *parser = (PySyckParserObject *)file->ptr;
-
-    PyObject *value;
-
-    char *str;
-    int length;
-
-    buf[skip] = '\0';
-
-    if (parser->error) {
-        return skip;
-    }
-    
-    max_size -= skip;
-
-    value = PyObject_CallMethod(parser->source, "read", "(i)", max_size);
-    if (!value) {
-        parser->error = 1;
-        return skip;
-    }
-
-    if (!PyString_Check(value)) {
-        Py_DECREF(value);
-        PyErr_SetString(PyExc_TypeError, "file-like object should return a string");
-        parser->error = 1;
-        
-        return skip;
-    }
-
-    str = PyString_AS_STRING(value);
-    length = PyString_GET_SIZE(value);
-    if (!length) {
-        Py_DECREF(value);
-        return skip;
-    }
-
-    if (length > max_size) {
-        Py_DECREF(value);
-        PyErr_SetString(PyExc_ValueError, "read returns an overly long string");
-        parser->error = 1;
-        return skip;
-    }
-
-    memcpy(buf+skip, str, length);
-    length += skip;
-    buf[length] = '\0';
-
-    Py_DECREF(value);
-
-    return length;
-}
 
 static SYMID
 PySyckParser_node_handler(SyckParser *syck, SyckNode *node)
@@ -1293,125 +1589,6 @@ error:
     return -1;
 }
 
-static void
-PySyckParser_error_handler(SyckParser *syck, char *str)
-{
-    PySyckParserObject *parser = (PySyckParserObject *)syck->bonus;
-    PyObject *value;
-
-    if (parser->error) return;
-
-    parser->error = 1;
-
-    value = Py_BuildValue("(sii)", str, syck->linect, syck->cursor-syck->lineptr);
-    if (value) {
-        PyErr_SetObject(PySyck_Error, value);
-    }
-}
-
-static PyObject *
-PySyck_Parser(PyObject *self, PyObject *args, PyObject *kwds)
-{
-    PySyckParserObject *parser;
-    PyObject *source;
-    PyObject *resolver = NULL;
-    int implicit_typing = 1;
-    int taguri_expansion = 1;
-
-    static char *kwdlist[] = {"source", "resolver", "implicit_typing", "taguri_expansion", NULL};
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Oii", kwdlist,
-                &source, &resolver, &implicit_typing, &taguri_expansion))
-        return NULL;
-
-    parser = PyObject_NEW(PySyckParserObject, &PySyckParser_Type);
-    if (!parser)
-        return NULL;
-
-    parser->error = 0;
-    parser->symbols = NULL;
-
-    Py_INCREF(source);
-    parser->source = source;
-
-    if (resolver == Py_None)
-        resolver = NULL;
-    Py_XINCREF(resolver);
-    parser->resolver = resolver;
-
-    parser->syck = syck_new_parser();
-    parser->syck->bonus = parser;
-
-    if (PyString_Check(source)) {
-        syck_parser_str(parser->syck, PyString_AS_STRING(source), PyString_GET_SIZE(source), NULL);
-    }
-    else {
-        syck_parser_file(parser->syck, (FILE *)parser, PySyckParser_read_handler);
-    }
-    syck_parser_implicit_typing(parser->syck, implicit_typing);
-    syck_parser_taguri_expansion(parser->syck, taguri_expansion);
-
-    syck_parser_handler(parser->syck, PySyckParser_node_handler);
-    syck_parser_error_handler(parser->syck, PySyckParser_error_handler);
-    /*
-    syck_parser_bad_anchor_handler(parser, PySyckParser_bad_anchor_handler);
-    */
-
-    return (PyObject *)parser;
-}
-
-static char PySyck_Parser_doc[] =
-    "Creates a new Parser object.";
-
-/* The module definitions. */
-
-static PyMethodDef PySyck_methods[] = {
-    {"Node",  (PyCFunction)PySyck_Node, METH_VARARGS, PySyck_Node_doc},
-    {"Parser",  (PyCFunction)PySyck_Parser, METH_VARARGS|METH_KEYWORDS, PySyck_Parser_doc},
-    {NULL}  /* Sentinel */
-};
-
-static char PySyck_doc[] =
-    "This module provides low-level access to the Syck parser and emitter.\n"
-    "Do not use this module directly, use the package 'syck' instead.\n";
-
-/* PyMODINIT_FUNC - does not work with versions <2.3 */
-void
-init_syck(void)
-{
-    PyObject *m;
-
-    PySyckNode_Type.ob_type = &PyType_Type;
-    PySyckParser_Type.ob_type = &PyType_Type;
-
-    PySyck_Error = PyErr_NewException("_syck.error", NULL, NULL);
-    if (!PySyck_Error)
-        return;
-
-    PySyck_ScalarKind = PyString_FromString("scalar");
-    if (!PySyck_ScalarKind)
-        return;
-    PySyck_SeqKind = PyString_FromString("seq");
-    if (!PySyck_SeqKind)
-        return;
-    PySyck_MapKind = PyString_FromString("map");
-    if (!PySyck_MapKind)
-        return;
-
-    m = Py_InitModule3("_syck", PySyck_methods, PySyck_doc);
-
-    Py_INCREF(PySyck_Error);
-    if (!PyModule_AddObject(m, "error", PySyck_Error) < 0)
-        return;
-
-    Py_INCREF(&PySyckNode_Type);
-    if (PyModule_AddObject(m, "NodeType", (PyObject *)&PySyckNode_Type) < 0)
-        return;
-
-    Py_INCREF(&PySyckParser_Type);
-    if (PyModule_AddObject(m, "ParserType", (PyObject *)&PySyckParser_Type) < 0)
-        return;
-}
 
 #endif
 
@@ -1422,9 +1599,7 @@ static PyMethodDef PySyck_methods[] = {
 };
 
 PyDoc_STRVAR(PySyck_doc,
-    "The low-level wrapper for the Syck YAML parser and emitter\n\n"
-    "Types:\n\n"
-    "Node -- the base Node type\n");
+    "low-level wrapper for the Syck YAML parser and emitter");
 
 PyMODINIT_FUNC
 init_syck(void)
@@ -1438,6 +1613,8 @@ init_syck(void)
     if (PyType_Ready(&PySyckSeq_Type) < 0)
         return;
     if (PyType_Ready(&PySyckMap_Type) < 0)
+        return;
+    if (PyType_Ready(&PySyckParser_Type) < 0)
         return;
     
     PySyck_Error = PyErr_NewException("_syck.error", NULL, NULL);
@@ -1468,6 +1645,10 @@ init_syck(void)
 
     m = Py_InitModule3("_syck", PySyck_methods, PySyck_doc);
 
+    Py_INCREF(PySyck_Error);
+    if (PyModule_AddObject(m, "error", (PyObject *)PySyck_Error) < 0)
+        return;
+
     Py_INCREF(&PySyckNode_Type);
     if (PyModule_AddObject(m, "Node", (PyObject *)&PySyckNode_Type) < 0)
         return;
@@ -1483,6 +1664,9 @@ init_syck(void)
     Py_INCREF(&PySyckMap_Type);
     if (PyModule_AddObject(m, "Map", (PyObject *)&PySyckMap_Type) < 0)
         return;
-}
 
+    Py_INCREF(&PySyckParser_Type);
+    if (PyModule_AddObject(m, "Parser", (PyObject *)&PySyckParser_Type) < 0)
+        return;
+}
 

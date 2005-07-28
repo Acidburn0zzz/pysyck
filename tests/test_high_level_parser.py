@@ -1,7 +1,7 @@
 
 import unittest
 import syck
-import test_low_parser
+import test_low_level_parser
 import os
 
 try:
@@ -110,9 +110,7 @@ Flow tasks: !pairs [ meeting: with team, meeting: with boss ]
     ],
 }
 
-try:
-    import sets
-    SET = """
+SET = """
 # Syck does not understand it
 ## Explicitly typed set.
 #baseball players: !set
@@ -125,10 +123,8 @@ baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
 #    'baseball players': sets.Set(['Mark McGwire', 'Sammy Sosa', 'Ken Griffey']),
     'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
 }
-except ImportError:
-    pass
 
-class TestDocuments(test_low_parser.TestDocuments):
+class TestDocuments(test_low_level_parser.TestDocuments):
 
     def _testDocuments(self, source, length):
         actual_length = 0
@@ -140,25 +136,25 @@ class TestDocuments(test_low_parser.TestDocuments):
             actual_length += 1
         self.assertEqual(actual_length, length)
 
-class TestValuesAndSources(test_low_parser.TestValuesAndSources):
+class TestValuesAndSources(test_low_level_parser.TestValuesAndSources):
 
     def testValues1(self):
-        self._testValues(test_low_parser.COMPARE1)
+        self._testValues(test_low_level_parser.COMPARE1)
 
     def testValues2(self):
-        self._testValues(test_low_parser.COMPARE2)
+        self._testValues(test_low_level_parser.COMPARE2)
 
     def testValues3(self):
-        self._testValues(test_low_parser.COMPARE3)
+        self._testValues(test_low_level_parser.COMPARE3)
 
     def testFileValues1(self):
-        self._testFileValues(test_low_parser.COMPARE1)
+        self._testFileValues(test_low_level_parser.COMPARE1)
 
     def testFileValues2(self):
-        self._testFileValues(test_low_parser.COMPARE2)
+        self._testFileValues(test_low_level_parser.COMPARE2)
 
     def testFileValues3(self):
-        self._testFileValues(test_low_parser.COMPARE3)
+        self._testFileValues(test_low_level_parser.COMPARE3)
 
     def testNonsense(self):
         class MyFile1:
