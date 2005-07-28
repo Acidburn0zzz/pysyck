@@ -2,7 +2,9 @@
 #include <Python.h>
 #include <syck.h>
 
-/* Python 2.2 compatibility. */
+/****************************************************************************
+ * Python 2.2 compatibility.
+ ****************************************************************************/
 
 #ifndef PyDoc_STR
 #define PyDoc_VAR(name)         static char name[]
@@ -14,8 +16,10 @@
 #define PyMODINIT_FUNC  void
 #endif
 
-/* Global objects: _syck.error, 'scalar', 'seq', 'map',
-    '1quote', '2quote', 'fold', 'literal', 'plain', '+', '-'. */
+/****************************************************************************
+ * Global objects: _syck.error, 'scalar', 'seq', 'map',
+ * '1quote', '2quote', 'fold', 'literal', 'plain', '+', '-'.
+ ****************************************************************************/
 
 static PyObject *PySyck_Error;
 
@@ -32,7 +36,9 @@ static PyObject *PySyck_PlainStyle;
 static PyObject *PySyck_StripChomp;
 static PyObject *PySyck_KeepChomp;
 
-/* The type _syck.Node. */
+/****************************************************************************
+ * The type _syck.Node.
+ ****************************************************************************/
 
 PyDoc_STRVAR(PySyckNode_doc,
     "The base Node type\n\n"
@@ -40,151 +46,78 @@ PyDoc_STRVAR(PySyckNode_doc,
     "_syck.Seq, and _syck.Map. You cannot create an instance of _syck.Node\n"
     "directly. You may use _syck.Node for type checking.\n");
 
-static PyTypeObject PySyckNode_Type = {
-    PyObject_HEAD_INIT(NULL)
-    0,                                          /* ob_size */
-    "_syck.Node",                               /* tp_name */
-    sizeof(PyObject),                           /* tp_basicsize */
-    0,                                          /* tp_itemsize */
-    0,                                          /* tp_dealloc */
-    0,                                          /* tp_print */
-    0,                                          /* tp_getattr */
-    0,                                          /* tp_setattr */
-    0,                                          /* tp_compare */
-    0,                                          /* tp_repr */
-    0,                                          /* tp_as_number */
-    0,                                          /* tp_as_sequence */
-    0,                                          /* tp_as_mapping */
-    0,                                          /* tp_hash */
-    0,                                          /* tp_call */
-    0,                                          /* tp_str */
-    0,                                          /* tp_getattro */
-    0,                                          /* tp_setattro */
-    0,                                          /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,     /* tp_flags */
-    PySyckNode_doc,                             /* tp_doc */
-};
-
-/* The type _syck.Scalar */
-
-PyDoc_STRVAR(PySyckScalar_doc,
-    "The Scalar node type\n\n"
-    "_syck.Scalar represents a scalar node in Syck parser and emitter\n"
-    "graph. A scalar node points to a single string value.\n\n"
-    "Attributes:\n\n"
-    "kind -- always 'scalar'; read-only\n"
-    "value -- the node value, a string\n"
-    "tag -- the node tag; a string or None\n"
-    "anchor -- the name of the node anchor or None; read-only\n"
-    "style -- the node style; None (means literal or plain),\n"
-    "         '1quote', '2quote', 'fold', 'literal', 'plain'\n"
-    "indent -- indentation, an integer; 0 means default\n"
-    "width -- the preferred width; 0 means default\n"
-    "chomp -- None (clip), '-' (strip), or '+' (keep)\n");
-
 typedef struct {
     PyObject_HEAD
-    PyObject *value;
-    PyObject *tag;
-    PyObject *anchor;
-    enum scalar_style style;
-    int indent;
-    int width;
-    char chomp;
-} PySyckScalarObject;
+    /* Common fields for all Node types: */
+    PyObject *value;    /* always an object */
+    PyObject *tag;      /* a string object or NULL */
+    PyObject *anchor;   /* a string object or NULL */
+} PySyckNodeObject;
+
 
 static int
-PySyckScalar_clear(PySyckScalarObject *self)
+PySyckNode_clear(PySyckNodeObject *self)
 {
-    Py_XDECREF(self->value);
+    PyObject *tmp;
+
+    tmp = self->value;
     self->value = NULL;
-    Py_XDECREF(self->tag);
+    Py_XDECREF(tmp);
+
+    tmp = self->tag;
     self->tag = NULL;
-    Py_XDECREF(self->anchor);
-    self->anchor = NULL;
+    Py_XDECREF(tmp);
+
+    tmp = self->anchor;
+    self->value = NULL;
+    Py_XDECREF(tmp);
 
     return 0;
 }
 
 static int
-PySyckScalar_traverse(PySyckScalarObject *self, visitproc visit, void *arg)
+PySyckNode_traverse(PySyckNodeObject *self, visitproc visit, void *arg)
 {
-    if (self->value && visit(self->value, arg) < 0)
-        return -1;
-    if (self->tag && visit(self->tag, arg) < 0)
-        return -1;
-    if (self->anchor && visit(self->anchor, arg) < 0)
-        return -1;
+    int ret;
+
+    if (self->value)
+        if ((ret = visit(self->value, arg)) != 0)
+            return ret;
+
+    if (self->tag)
+        if ((ret = visit(self->tag, arg)) != 0)
+            return ret;
+
+    if (self->anchor)
+        if ((ret = visit(self->anchor, arg)) != 0)
+            return ret;
 
     return 0;
 }
 
 static void
-PySyckScalar_dealloc(PySyckScalarObject *self)
+PySyckNode_dealloc(PySyckNodeObject *self)
 {
-    PySyckScalar_clear(self);
+    PySyckNode_clear(self);
     self->ob_type->tp_free((PyObject *)self);
 }
 
 static PyObject *
-PySyckScalar_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+PySyckNode_getkind(PySyckNodeObject *self, PyObject **closure)
 {
-    PySyckScalarObject *self;
-
-    self = (PySyckScalarObject *)type->tp_alloc(type, 0);
-    if (!self) return NULL;
-
-    self->value = PyString_FromString("");
-    if (!self->value) {
-        Py_DECREF(self);
-        return NULL;
-    }
-
-    self->tag = NULL;
-    self->anchor = NULL;
-    self->style = scalar_none;
-    self->indent = 0;
-    self->width = 0;
-    self->chomp = 0;
-
-    return (PyObject *)self;
+    Py_INCREF(*closure);
+    return *closure;
 }
 
 static PyObject *
-PySyckScalar_getkind(PySyckScalarObject *self, void *closure)
-{
-    Py_INCREF(PySyck_ScalarKind);
-    return PySyck_ScalarKind;
-}
-
-static PyObject *
-PySyckScalar_getvalue(PySyckScalarObject *self, void *closure)
+PySyckNode_getvalue(PySyckNodeObject *self, void *closure)
 {
     Py_INCREF(self->value);
     return self->value;
 }
 
-static int
-PySyckScalar_setvalue(PySyckScalarObject *self, PyObject *value, void *closure)
-{
-    if (!value) {
-        PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
-        return -1;
-    }
-    if (!PyString_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "'value' must be a string");
-        return -1;
-    }
-
-    Py_DECREF(self->value);
-    Py_INCREF(value);
-    self->value = value;
-
-    return 0;
-}
-
 static PyObject *
-PySyckScalar_gettag(PySyckScalarObject *self, void *closure)
+PySyckNode_gettag(PySyckNodeObject *self, void *closure)
 {
     PyObject *value = self->tag ? self->tag : Py_None;
     Py_INCREF(value);
@@ -192,7 +125,7 @@ PySyckScalar_gettag(PySyckScalarObject *self, void *closure)
 }
 
 static int
-PySyckScalar_settag(PySyckScalarObject *self, PyObject *value, void *closure)
+PySyckNode_settag(PySyckNodeObject *self, PyObject *value, void *closure)
 {
     if (!value) {
         PyErr_SetString(PyExc_TypeError, "cannot delete 'tag'");
@@ -218,7 +151,7 @@ PySyckScalar_settag(PySyckScalarObject *self, PyObject *value, void *closure)
 }
 
 static PyObject *
-PySyckScalar_getanchor(PySyckScalarObject *self, void *closure)
+PySyckNode_getanchor(PySyckNodeObject *self, void *closure)
 {
     PyObject *value = self->anchor ? self->anchor : Py_None;
     Py_INCREF(value);
@@ -226,7 +159,7 @@ PySyckScalar_getanchor(PySyckScalarObject *self, void *closure)
 }
 
 static int
-PySyckScalar_setanchor(PySyckScalarObject *self, PyObject *value, void *closure)
+PySyckNode_setanchor(PySyckNodeObject *self, PyObject *value, void *closure)
 {
     if (!value) {
         PyErr_SetString(PyExc_TypeError, "cannot delete 'anchor'");
@@ -247,6 +180,109 @@ PySyckScalar_setanchor(PySyckScalarObject *self, PyObject *value, void *closure)
     Py_XDECREF(self->anchor);
     Py_INCREF(value);
     self->anchor = value;
+
+    return 0;
+}
+
+static PyTypeObject PySyckNode_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Node",                               /* tp_name */
+    sizeof(PySyckNodeObject),                   /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    (destructor)PySyckNode_dealloc,             /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckNode_doc,                             /* tp_doc */
+    (traverseproc)PySyckNode_traverse,          /* tp_traverse */
+    (inquiry)PySyckNode_clear,                  /* tp_clear */
+};
+
+/****************************************************************************
+ * The type _syck.Scalar.
+ ****************************************************************************/
+
+PyDoc_STRVAR(PySyckScalar_doc,
+    "Scalar(value='', tag=None, style=None, indent=0, width=0, chomp=None)\n"
+    "      -> a Scalar node\n\n"
+    "_syck.Scalar represents a scalar node in Syck parser and emitter\n"
+    "graphs. A scalar node points to a single string value.\n\n"
+    "Attributes:\n\n"
+    "kind -- always 'scalar'; read-only\n"
+    "value -- the node value, a string\n"
+    "tag -- the node tag; a string or None\n"
+    "anchor -- the name of the node anchor or None; read-only\n"
+    "style -- the node style; None (means literal or plain),\n"
+    "         '1quote', '2quote', 'fold', 'literal', 'plain'\n"
+    "indent -- indentation, an integer; 0 means default\n"
+    "width -- the preferred width; 0 means default\n"
+    "chomp -- None (clip), '-' (strip), or '+' (keep)\n");
+
+typedef struct {
+    PyObject_HEAD
+    /* Common fields for all Node types: */
+    PyObject *value;    /* always a string object */
+    PyObject *tag;      /* a string object or NULL */
+    PyObject *anchor;   /* a string object or NULL */
+    /* Scalar-specific fields: */
+    enum scalar_style style;
+    int indent;
+    int width;
+    char chomp;
+} PySyckScalarObject;
+
+static PyObject *
+PySyckScalar_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckScalarObject *self;
+
+    self = (PySyckScalarObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->value = PyString_FromString("");
+    if (!self->value) {
+        Py_DECREF(self);
+        return NULL;
+    }
+
+    self->tag = NULL;
+    self->anchor = NULL;
+    self->style = scalar_none;
+    self->indent = 0;
+    self->width = 0;
+    self->chomp = 0;
+
+    return (PyObject *)self;
+}
+
+static int
+PySyckScalar_setvalue(PySyckScalarObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
+        return -1;
+    }
+    if (!PyString_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'value' must be a string");
+        return -1;
+    }
+
+    Py_DECREF(self->value);
+    Py_INCREF(value);
+    self->value = value;
 
     return 0;
 }
@@ -429,10 +465,10 @@ PySyckScalar_init(PySyckScalarObject *self, PyObject *args, PyObject *kwds)
     if (value && PySyckScalar_setvalue(self, value, NULL) < 0)
         return -1;
 
-    if (tag && PySyckScalar_settag(self, tag, NULL) < 0)
+    if (tag && PySyckNode_settag((PySyckNodeObject *)self, tag, NULL) < 0)
         return -1;
 
-    if (anchor && PySyckScalar_setanchor(self, anchor, NULL) < 0)
+    if (anchor && PySyckNode_setanchor((PySyckNodeObject *)self, anchor, NULL) < 0)
         return -1;
 
     if (style && PySyckScalar_setstyle(self, style, NULL) < 0)
@@ -451,13 +487,13 @@ PySyckScalar_init(PySyckScalarObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyGetSetDef PySyckScalar_getsetters[] = {
-    {"kind", (getter)PySyckScalar_getkind, NULL,
-        "the node kind", NULL},
-    {"value", (getter)PySyckScalar_getvalue, (setter)PySyckScalar_setvalue,
+    {"kind", (getter)PySyckNode_getkind, NULL,
+        "the node kind", &PySyck_ScalarKind},
+    {"value", (getter)PySyckNode_getvalue, (setter)PySyckScalar_setvalue,
         "the node value", NULL},
-    {"tag", (getter)PySyckScalar_gettag, (setter)PySyckScalar_settag,
+    {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
         "the node tag", NULL},
-    {"anchor", (getter)PySyckScalar_getanchor, (setter)PySyckScalar_setanchor,
+    {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
         "the node anchor", NULL},
     {"style", (getter)PySyckScalar_getstyle, (setter)PySyckScalar_setstyle,
         "the node style", NULL},
@@ -476,7 +512,7 @@ static PyTypeObject PySyckScalar_Type = {
     "_syck.Scalar",                             /* tp_name */
     sizeof(PySyckScalarObject),                 /* tp_basicsize */
     0,                                          /* tp_itemsize */
-    (destructor)PySyckScalar_dealloc,           /* tp_dealloc */
+    0,                                          /* tp_dealloc */
     0,                                          /* tp_print */
     0,                                          /* tp_getattr */
     0,                                          /* tp_setattr */
@@ -491,10 +527,10 @@ static PyTypeObject PySyckScalar_Type = {
     0,                                          /* tp_getattro */
     0,                                          /* tp_setattro */
     0,                                          /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,     /* tp_flags */
     PySyckScalar_doc,                           /* tp_doc */
-    (traverseproc)PySyckScalar_traverse,        /* tp_traverse */
-    (inquiry)PySyckScalar_clear,                /* tp_clear */
+    0,                                          /* tp_traverse */
+    0,                                          /* tp_clear */
     0,                                          /* tp_richcompare */
     0,                                          /* tp_weaklistoffset */
     0,                                          /* tp_iter */
@@ -510,6 +546,360 @@ static PyTypeObject PySyckScalar_Type = {
     (initproc)PySyckScalar_init,                /* tp_init */
     0,                                          /* tp_alloc */
     PySyckScalar_new,                           /* tp_new */
+};
+
+/****************************************************************************
+ * The type _syck.Seq.
+ ****************************************************************************/
+
+PyDoc_STRVAR(PySyckSeq_doc,
+    "Seq(value=[], tag=None, inline=False) -> a Seq node\n\n"
+    "_syck.Seq represents a sequence node in Syck parser and emitter\n"
+    "graphs. A sequence node points to an ordered set of subnodes.\n\n"
+    "Attributes:\n\n"
+    "kind -- always 'seq'; read-only\n"
+    "value -- the node value, a list\n"
+    "tag -- the node tag; a string or None\n"
+    "anchor -- the name of the node anchor or None; read-only\n"
+    "inline -- is the node inline? False or True\n");
+
+typedef struct {
+    PyObject_HEAD
+    /* Common fields for all Node types: */
+    PyObject *value;    /* always an object */
+    PyObject *tag;      /* a string object or NULL */
+    PyObject *anchor;   /* a string object or NULL */
+    /* Seq-specific fields: */
+    enum seq_style style;
+} PySyckSeqObject;
+
+static PyObject *
+PySyckSeq_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckSeqObject *self;
+
+    self = (PySyckSeqObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->value = PyList_New(0);
+    if (!self->value) {
+        Py_DECREF(self);
+        return NULL;
+    }
+
+    self->tag = NULL;
+    self->anchor = NULL;
+    self->style = seq_none;
+
+    return (PyObject *)self;
+}
+
+static int
+PySyckSeq_setvalue(PySyckSeqObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
+        return -1;
+    }
+    if (!PySequence_Check(value)) { /* PySequence_Check always succeeds */
+        PyErr_SetString(PyExc_TypeError, "'value' must be a sequence");
+        return -1;
+    }
+
+    Py_DECREF(self->value);
+    Py_INCREF(value);
+    self->value = value;
+
+    return 0;
+}
+
+static PyObject *
+PySyckSeq_getinline(PySyckSeqObject *self, void *closure)
+{
+    PyObject *value = (self->style == seq_inline) ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckSeq_setinline(PySyckSeqObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'inline'");
+        return -1;
+    }
+
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'inline' must be a Boolean object");
+        return -1;
+    }
+
+    self->style = PyInt_AS_LONG(value) ? seq_inline : seq_none;
+
+    return 0;
+}
+
+static int
+PySyckSeq_init(PySyckSeqObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *value = NULL;
+    PyObject *tag = NULL;
+    PyObject *anchor = NULL;
+    PyObject *inline_ = NULL;
+
+    static char *kwdlist[] = {"value", "tag", "anchor", "inline", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO", kwdlist,
+                &value, &tag, &anchor, &inline_))
+        return -1;
+
+    if (value && PySyckSeq_setvalue(self, value, NULL) < 0)
+        return -1;
+
+    if (tag && PySyckNode_settag((PySyckNodeObject *)self, tag, NULL) < 0)
+        return -1;
+
+    if (anchor && PySyckNode_setanchor((PySyckNodeObject *)self, anchor, NULL) < 0)
+        return -1;
+
+    if (inline_ && PySyckSeq_setinline(self, inline_, NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+static PyGetSetDef PySyckSeq_getsetters[] = {
+    {"kind", (getter)PySyckNode_getkind, NULL,
+        "the node kind", &PySyck_SeqKind},
+    {"value", (getter)PySyckNode_getvalue, (setter)PySyckSeq_setvalue,
+        "the node value", NULL},
+    {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
+        "the node tag", NULL},
+    {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
+        "the node anchor", NULL},
+    {"inline", (getter)PySyckSeq_getinline, (setter)PySyckSeq_setinline,
+        "the node style", NULL},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PySyckSeq_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Seq",                                /* tp_name */
+    sizeof(PySyckSeqObject),                    /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    0,                                          /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckSeq_doc,                              /* tp_doc */
+    (traverseproc)PySyckNode_traverse,          /* tp_traverse */
+    (inquiry)PySyckNode_clear,                  /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    0,                                          /* tp_methods */
+    0,                                          /* tp_members */
+    PySyckSeq_getsetters,                       /* tp_getset */
+    &PySyckNode_Type,                           /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)PySyckSeq_init,                   /* tp_init */
+    0,                                          /* tp_alloc */
+    PySyckSeq_new,                              /* tp_new */
+};
+
+/****************************************************************************
+ * The type _syck.Map.
+ ****************************************************************************/
+
+PyDoc_STRVAR(PySyckMap_doc,
+    "Map(value='', tag=None, inline=False) -> a Map node\n\n"
+    "_syck.Map represents a mapping node in Syck parser and emitter\n"
+    "graphs. A mapping node points to an unordered collections of pairs.\n\n"
+    "Attributes:\n\n"
+    "kind -- always 'map'; read-only\n"
+    "value -- the node value, a dictionary\n"
+    "tag -- the node tag; a string or None\n"
+    "anchor -- the name of the node anchor or None; read-only\n"
+    "inline -- is the node inline? False or True\n");
+
+typedef struct {
+    PyObject_HEAD
+    /* Common fields for all Node types: */
+    PyObject *value;    /* always an object */
+    PyObject *tag;      /* a string object or NULL */
+    PyObject *anchor;   /* a string object or NULL */
+    /* Map-specific fields: */
+    enum map_style style;
+} PySyckMapObject;
+
+static PyObject *
+PySyckMap_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckMapObject *self;
+
+    self = (PySyckMapObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->value = PyDict_New();
+    if (!self->value) {
+        Py_DECREF(self);
+        return NULL;
+    }
+
+    self->tag = NULL;
+    self->anchor = NULL;
+    self->style = seq_none;
+
+    return (PyObject *)self;
+}
+
+static int
+PySyckMap_setvalue(PySyckMapObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
+        return -1;
+    }
+    if (!PyMapping_Check(value)) { /* PyMapping_Check always succeeds */
+        PyErr_SetString(PyExc_TypeError, "'value' must be a mapping");
+        return -1;
+    }
+
+    Py_DECREF(self->value);
+    Py_INCREF(value);
+    self->value = value;
+
+    return 0;
+}
+
+static PyObject *
+PySyckMap_getinline(PySyckMapObject *self, void *closure)
+{
+    PyObject *value = (self->style == map_inline) ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static int
+PySyckMap_setinline(PySyckMapObject *self, PyObject *value, void *closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete 'inline'");
+        return -1;
+    }
+
+    if (!PyInt_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'inline' must be a Boolean object");
+        return -1;
+    }
+
+    self->style = PyInt_AS_LONG(value) ? map_inline : map_none;
+
+    return 0;
+}
+
+static int
+PySyckMap_init(PySyckMapObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *value = NULL;
+    PyObject *tag = NULL;
+    PyObject *anchor = NULL;
+    PyObject *inline_ = NULL;
+
+    static char *kwdlist[] = {"value", "tag", "anchor", "inline", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOO", kwdlist,
+                &value, &tag, &anchor, &inline_))
+        return -1;
+
+    if (value && PySyckMap_setvalue(self, value, NULL) < 0)
+        return -1;
+
+    if (tag && PySyckNode_settag((PySyckNodeObject *)self, tag, NULL) < 0)
+        return -1;
+
+    if (anchor && PySyckNode_setanchor((PySyckNodeObject *)self, anchor, NULL) < 0)
+        return -1;
+
+    if (inline_ && PySyckMap_setinline(self, inline_, NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+static PyGetSetDef PySyckMap_getsetters[] = {
+    {"kind", (getter)PySyckNode_getkind, NULL,
+        "the node kind", &PySyck_MapKind},
+    {"value", (getter)PySyckNode_getvalue, (setter)PySyckMap_setvalue,
+        "the node value", NULL},
+    {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
+        "the node tag", NULL},
+    {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
+        "the node anchor", NULL},
+    {"inline", (getter)PySyckMap_getinline, (setter)PySyckMap_setinline,
+        "the node style", NULL},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PySyckMap_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Map",                                /* tp_name */
+    sizeof(PySyckMapObject),                    /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    0,                                          /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckMap_doc,                              /* tp_doc */
+    (traverseproc)PySyckNode_traverse,          /* tp_traverse */
+    (inquiry)PySyckNode_clear,                  /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    0,                                          /* tp_methods */
+    0,                                          /* tp_members */
+    PySyckMap_getsetters,                       /* tp_getset */
+    &PySyckNode_Type,                           /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)PySyckMap_init,                   /* tp_init */
+    0,                                          /* tp_alloc */
+    PySyckMap_new,                              /* tp_new */
 };
 
 
@@ -1045,6 +1435,10 @@ init_syck(void)
         return;
     if (PyType_Ready(&PySyckScalar_Type) < 0)
         return;
+    if (PyType_Ready(&PySyckSeq_Type) < 0)
+        return;
+    if (PyType_Ready(&PySyckMap_Type) < 0)
+        return;
     
     PySyck_Error = PyErr_NewException("_syck.error", NULL, NULL);
     if (!PySyck_Error) return;
@@ -1080,6 +1474,14 @@ init_syck(void)
 
     Py_INCREF(&PySyckScalar_Type);
     if (PyModule_AddObject(m, "Scalar", (PyObject *)&PySyckScalar_Type) < 0)
+        return;
+
+    Py_INCREF(&PySyckSeq_Type);
+    if (PyModule_AddObject(m, "Seq", (PyObject *)&PySyckSeq_Type) < 0)
+        return;
+
+    Py_INCREF(&PySyckMap_Type);
+    if (PyModule_AddObject(m, "Map", (PyObject *)&PySyckMap_Type) < 0)
         return;
 }
 

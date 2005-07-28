@@ -62,19 +62,25 @@ class TestNodes(unittest.TestCase):
         self.assertEqual(seq.value, [])
         self.assertEqual(seq.anchor, None)
         self.assertEqual(seq.tag, None)
-        self.assertEqual(seq.style, None)
+        self.assertEqual(seq.inline, False)
+        self.assertRaises(TypeError, lambda: setattr(seq, 'kind', 'map'))
+        self.assertRaises(TypeError, lambda: setattr(seq, 'tag', []))
+        self.assertRaises(TypeError, lambda: setattr(seq, 'inline', 'block'))
+        self.assertRaises(TypeError, lambda: setattr(seq, 'inline', []))
         value = [_syck.Scalar(str(k)) for k in range(10)]
-        seq = _syck.Seq(value, tag='a_tag', style='inline')
+        seq = _syck.Seq(value, tag='a_tag', inline=True)
         self.assertEqual(seq.value, value)
         self.assertEqual(seq.tag, 'a_tag')
-        self.assertEqual(seq.style, 'inline')
+        self.assertEqual(seq.inline, True)
         value = [_syck.Scalar(str(k)) for k in range(20)]
         seq.value = value
         seq.tag = 'another_tag'
-        seq.style = 'block'
+        seq.inline = False
         self.assertEqual(seq.value, value)
         self.assertEqual(seq.tag, 'another_tag')
-        self.assertEqual(seq.style, 'block')
+        self.assertEqual(seq.inline, False)
+        seq.tag = None
+        self.assertEqual(seq.tag, None)
 
     def testMap(self):
         self.assert_(issubclass(_syck.Map, _syck.Node))
@@ -83,22 +89,32 @@ class TestNodes(unittest.TestCase):
         self.assertEqual(map.value, {})
         self.assertEqual(map.anchor, None)
         self.assertEqual(map.tag, None)
-        self.assertEqual(map.style, None)
+        self.assertEqual(map.inline, False)
+        self.assertRaises(TypeError, lambda: setattr(map, 'kind', 'map'))
+        self.assertRaises(TypeError, lambda: setattr(map, 'tag', []))
+        self.assertRaises(TypeError, lambda: setattr(map, 'inline', 'block'))
+        self.assertRaises(TypeError, lambda: setattr(map, 'inline', []))
         value = dict([(_syck.Scalar(str(k)), _syck.Scalar(str(-k))) for k in range(10)])
-        map = _syck.Map(value, tag='a_tag', style='inline')
+        map = _syck.Map(value, tag='a_tag', inline=True)
         self.assertEqual(map.value, value)
         self.assertEqual(map.tag, 'a_tag')
-        self.assertEqual(map.style, 'inline')
-        value = dict([(_syck.Scalar(str(k)), _syck.Scalar(str(-k))) for k in range(20)])
+        self.assertEqual(map.inline, True)
+        value = [(_syck.Scalar(str(k)), _syck.Scalar(str(-k))) for k in range(20)]
         map.value = value
         map.tag = 'another_tag'
-        map.style = 'block'
+        map.inline = False
         self.assertEqual(map.value, value)
         self.assertEqual(map.tag, 'another_tag')
-        self.assertEqual(map.style, 'block')
+        self.assertEqual(map.inline, False)
+        map.tag = None
+        self.assertEqual(map.tag, None)
 
     def testGarbage(self):
         gc.collect()
+        seq = _syck.Seq()
+        seq.value = [seq]
+        del seq
+        self.assertEqual(gc.collect(), 2)
         scalar1 = _syck.Scalar()
         scalar2 = _syck.Scalar()
         seq = _syck.Seq()
