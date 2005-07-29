@@ -1,7 +1,7 @@
 
 import unittest
 import syck
-import test_low_level_parser
+import test_parser
 import os
 
 try:
@@ -124,37 +124,33 @@ baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
     'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
 }
 
-class TestDocuments(test_low_level_parser.TestDocuments):
+class TestDocuments(test_parser.TestDocuments):
 
     def _testDocuments(self, source, length):
-        actual_length = 0
-        for document in syck.load_documents(source):
-            actual_length += 1
+        actual_length = len(list(syck.load_documents(source)))
         self.assertEqual(actual_length, length)
-        actual_length = 0
-        for document in syck.parse_documents(source):
-            actual_length += 1
+        actual_length = len(list(syck.parse_documents(source)))
         self.assertEqual(actual_length, length)
 
-class TestValuesAndSources(test_low_level_parser.TestValuesAndSources):
+class TestValuesAndSources(test_parser.TestValuesAndSources):
 
     def testValues1(self):
-        self._testValues(test_low_level_parser.COMPARE1)
+        self._testValues(test_parser.COMPARE1)
 
     def testValues2(self):
-        self._testValues(test_low_level_parser.COMPARE2)
+        self._testValues(test_parser.COMPARE2)
 
     def testValues3(self):
-        self._testValues(test_low_level_parser.COMPARE3)
+        self._testValues(test_parser.COMPARE3)
 
     def testFileValues1(self):
-        self._testFileValues(test_low_level_parser.COMPARE1)
+        self._testFileValues(test_parser.COMPARE1)
 
     def testFileValues2(self):
-        self._testFileValues(test_low_level_parser.COMPARE2)
+        self._testFileValues(test_parser.COMPARE2)
 
     def testFileValues3(self):
-        self._testFileValues(test_low_level_parser.COMPARE3)
+        self._testFileValues(test_parser.COMPARE3)
 
     def testNonsense(self):
         class MyFile1:
