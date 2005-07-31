@@ -159,6 +159,15 @@ EXPLICIT_TYPING = """
     'tag:yaml.org,2002:seq',
 ]
 
+RECURSIVE = """
+--- &id002
+- &id001 Mark McGwire
+- Sammy Sosa
+- Ken Griffey
+- *id001
+- *id002
+"""
+
 class TestAttributes(unittest.TestCase):
 
     def testAttributes(self):
@@ -342,4 +351,10 @@ class TestExplicitTyping(unittest.TestCase):
         parser = _syck.Parser(EXPLICIT_TYPING[0])
         for node, tag in zip(parser.parse().value, EXPLICIT_TYPING[1]):
             self.assertEqual(node.tag, tag)
+
+class TestRecursive(unittest.TestCase):
+
+    def testRecursive(self):
+        parser = _syck.Parser(RECURSIVE)
+        self.assertRaises(TypeError, lambda: parser.parse())
 

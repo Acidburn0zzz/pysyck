@@ -329,7 +329,7 @@ PySyckScalar_setstyle(PySyckScalarObject *self, PyObject *value, void *closure)
     else if (strcmp(str, "plain") == 0)
         self->style = scalar_plain;
     else {
-        PyErr_SetString(PyExc_TypeError, "unknown 'style'");
+        PyErr_SetString(PyExc_ValueError, "unknown 'style'");
         return -1;
     }
 
@@ -588,8 +588,8 @@ PySyckSeq_setvalue(PySyckSeqObject *self, PyObject *value, void *closure)
         PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
         return -1;
     }
-    if (!PySequence_Check(value)) { /* PySequence_Check always succeeds */
-        PyErr_SetString(PyExc_TypeError, "'value' must be a sequence");
+    if (!PyList_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "'value' must be a list");
         return -1;
     }
 
@@ -759,8 +759,9 @@ PySyckMap_setvalue(PySyckMapObject *self, PyObject *value, void *closure)
         PyErr_SetString(PyExc_TypeError, "cannot delete 'value'");
         return -1;
     }
-    if (!PyMapping_Check(value)) { /* PyMapping_Check always succeeds */
-        PyErr_SetString(PyExc_TypeError, "'value' must be a mapping");
+    if (!PyDict_Check(value) && !PyList_Check(value)) {
+        PyErr_SetString(PyExc_TypeError,
+                "'value' must be a list of pairs or a dictionary");
         return -1;
     }
 
@@ -1122,6 +1123,19 @@ PySyckParser_error_handler(SyckParser *parser, char *str)
     }
 }
 
+SyckNode *
+PySyckParser_bad_anchor_handler(SyckParser *parser, char *anchor)
+{
+    PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
+
+    if (!self->halt) {
+        self->halt = 1;
+        PyErr_SetString(PyExc_TypeError, "recursive anchors are not implemented");
+    }
+
+    return syck_alloc_str();
+}
+
 static long
 PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
 {
@@ -1223,9 +1237,7 @@ PySyckParser_init(PySyckParserObject *self, PyObject *args, PyObject *kwds)
 
     syck_parser_handler(self->parser, PySyckParser_node_handler);
     syck_parser_error_handler(self->parser, PySyckParser_error_handler);
-    /*
-    syck_parser_bad_anchor_handler(parser, PySyckParser_bad_anchor_handler);
-    */
+    syck_parser_bad_anchor_handler(self->parser, PySyckParser_bad_anchor_handler);
 
     self->parsing = 0;
     self->halt = 0;
@@ -1331,6 +1343,687 @@ static PyTypeObject PySyckParser_Type = {
 };
 
 /****************************************************************************
+ * The type _syck.Emitter.
+ ****************************************************************************/
+
+PyDoc_STRVAR(PySyckEmitter_doc,
+    "Emitter(output, headless=False, use_header=True, explicit_typing=True,"
+    "        style=None, best_width=80, indent=2) -> an Emitter object\n\n"
+    "_syck.Emitter is a low-lever wrapper of the Syck emitter. It emit\n"
+    "a tree of Nodes into a YAML stream.\n");
+
+typedef struct {
+    PyObject_HEAD
+    /* Attributes: */
+    PyObject *output;       /* a file-like object */
+    int headless;
+    int use_header;
+    int use_version;
+    int explicit_typing;
+    enum scalar_style style;
+    int best_width;
+    int indent;
+    /* Internal fields: */
+    PyObject *symbols;      /* symbol table, a list, NULL outside emit() */
+    PyObject *nodes;        /* node -> symbol, a dict, NULL outside emit() */
+    SyckEmitter *emitter;
+    int emitting;
+    int halt;
+} PySyckEmitterObject;
+
+static PyObject *
+PySyckEmitter_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PySyckEmitterObject *self;
+
+    self = (PySyckEmitterObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+
+    self->output = NULL;
+    self->headless = 0;
+    self->use_header = 0;
+    self->use_version = 0;
+    self->explicit_typing = 0;
+    self->style = scalar_none;
+    self->best_width = 0;
+    self->indent = 0;
+    self->symbols = NULL;
+    self->nodes = NULL;
+    self->emitter = NULL;
+    self->emitting = 0;
+    self->halt = 1;
+
+    return (PyObject *)self;
+}
+
+static int
+PySyckEmitter_clear(PySyckEmitterObject *self)
+{
+    PyObject *tmp;
+
+    if (self->emitter) {
+        syck_free_emitter(self->emitter);
+        self->emitter = NULL;
+    }
+
+    tmp = self->output;
+    self->output = NULL;
+    Py_XDECREF(tmp);
+
+    tmp = self->symbols;
+    self->symbols = NULL;
+    Py_XDECREF(tmp);
+
+    tmp = self->nodes;
+    self->nodes = NULL;
+    Py_XDECREF(tmp);
+
+    return 0;
+}
+
+static int
+PySyckEmitter_traverse(PySyckEmitterObject *self, visitproc visit, void *arg)
+{
+    int ret;
+
+    if (self->output)
+        if ((ret = visit(self->output, arg)) != 0)
+            return ret;
+
+    if (self->symbols)
+        if ((ret = visit(self->symbols, arg)) != 0)
+            return ret;
+
+    if (self->nodes)
+        if ((ret = visit(self->nodes, arg)) != 0)
+            return ret;
+
+    return 0;
+}
+
+static void
+PySyckEmitter_dealloc(PySyckEmitterObject *self)
+{
+    PySyckEmitter_clear(self);
+    self->ob_type->tp_free((PyObject *)self);
+}
+
+static PyObject *
+PySyckEmitter_getoutput(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value = self->output ? self->output : Py_None;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getheadless(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value = self->headless ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getuse_header(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value = self->use_header ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getuse_version(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value = self->use_version ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getexplicit_typing(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value = self->explicit_typing ? Py_True : Py_False;
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getstyle(PySyckEmitterObject *self, void *closure)
+{
+    PyObject *value;
+
+    switch (self->style) {
+        case scalar_1quote: value = PySyck_1QuoteStyle; break;
+        case scalar_2quote: value = PySyck_2QuoteStyle; break;
+        case scalar_fold: value = PySyck_FoldStyle; break;
+        case scalar_literal: value = PySyck_LiteralStyle; break;
+        case scalar_plain: value = PySyck_PlainStyle; break;
+        default: value = Py_None;
+    }
+
+    Py_INCREF(value);
+    return value;
+}
+
+static PyObject *
+PySyckEmitter_getbest_width(PySyckEmitterObject *self, void *closure)
+{
+    return PyInt_FromLong(self->best_width);
+}
+
+static PyObject *
+PySyckEmitter_getindent(PySyckEmitterObject *self, void *closure)
+{
+    return PyInt_FromLong(self->indent);
+}
+
+static PyGetSetDef PySyckEmitter_getsetters[] = {
+    {"output", (getter)PySyckEmitter_getoutput, NULL,
+        PyDoc_STR("output stream, a file-like object"), NULL},
+    {"headless", (getter)PySyckEmitter_getheadless, NULL,
+        PyDoc_STR("headerless document flag"), NULL},
+    {"use_header", (getter)PySyckEmitter_getuse_header, NULL,
+        PyDoc_STR("force header"), NULL},
+    {"use_version", (getter)PySyckEmitter_getuse_version, NULL,
+        PyDoc_STR("force version"), NULL},
+    {"explicit_typing", (getter)PySyckEmitter_getexplicit_typing, NULL,
+        PyDoc_STR("explicit typing for all collections"), NULL},
+    {"style", (getter)PySyckEmitter_getstyle, NULL,
+        PyDoc_STR("use literal or folded blocks on all text"), NULL},
+    {"best_width", (getter)PySyckEmitter_getbest_width, NULL,
+        PyDoc_STR("best width for folded scalars"), NULL},
+    {"indent", (getter)PySyckEmitter_getindent, NULL,
+        PyDoc_STR("default indentation"), NULL},
+    {NULL}  /* Sentinel */
+};
+
+static void
+PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
+{
+    PySyckEmitterObject *self = (PySyckEmitterObject *)emitter->bonus;
+
+    PySyckNodeObject *node;
+    char *tag = NULL;
+    PyObject *index;
+    PyObject *key, *value, *item, *pair;
+    int j, k, l;
+    char *str;
+    int len;
+    int dict_pos;
+
+    if (self->halt) return;
+
+    node = (PySyckNodeObject *)PyList_GetItem(self->symbols, id);
+    if (!node) {
+        PyErr_SetString(PyExc_RuntimeError, "unknown data id");
+        self->halt = 1;
+        return;
+    }
+
+    if (node->tag) {
+        tag = PyString_AsString(node->tag);
+        if (!tag) {
+            self->halt = 1;
+            return;
+        }
+    }
+
+    if (PyObject_TypeCheck((PyObject *)node, &PySyckSeq_Type)) {
+
+        syck_emit_seq(emitter, tag, ((PySyckSeqObject *)node)->style);
+
+        if (!PyList_Check(node->value)) {
+            PyErr_SetString(PyExc_TypeError, "value of _syck.Seq must be a list");
+            self->halt = 1;
+            return;
+        }
+        l = PyList_GET_SIZE(node->value);
+        for (k = 0; k < l; k ++) {
+            item = PyList_GET_ITEM(node->value, k);
+            if ((index = PyDict_GetItem(self->nodes, item))) {
+                syck_emit_item(emitter, PyInt_AS_LONG(index));
+                if (self->halt) return;
+            }
+            else {
+                PyErr_SetString(PyExc_RuntimeError, "sequence item is not marked");
+                self->halt = 1;
+                return;
+            }
+        }
+        syck_emit_end(emitter);
+    }
+
+    else if (PyObject_TypeCheck((PyObject *)node, &PySyckMap_Type)) {
+
+        syck_emit_map(emitter, tag, ((PySyckMapObject *)node)->style);
+        
+        if (PyList_Check(node->value)) {
+            l = PyList_GET_SIZE(node->value);
+            for (k = 0; k < l; k ++) {
+                pair = PyList_GET_ITEM(node->value, k);
+                if (!PyTuple_Check(pair) || PyTuple_GET_SIZE(pair) != 2) {
+                    PyErr_SetString(PyExc_TypeError,
+                            "value of _syck.Map must be a list of pairs or a dictionary");
+                    self->halt = 1;
+                    return;
+                }
+                for (j = 0; j < 2; j++) {
+                    item = PyTuple_GET_ITEM(pair, j);
+                    if ((index = PyDict_GetItem(self->nodes, item))) {
+                        syck_emit_item(emitter, PyInt_AS_LONG(index));
+                        if (self->halt) return;
+                    }
+                    else {
+                        PyErr_SetString(PyExc_RuntimeError, "mapping item is not marked");
+                        self->halt = 1;
+                        return;
+                    }
+                }
+            }
+        }
+        else if (PyDict_Check(node->value)) {
+            dict_pos = 0;
+            while (PyDict_Next(node->value, &dict_pos, &key, &value)) {
+                for (j = 0; j < 2; j++) {
+                    item = j ? value : key;
+                    if ((index = PyDict_GetItem(self->nodes, item))) {
+                        syck_emit_item(emitter, PyInt_AS_LONG(index));
+                        if (self->halt) return;
+                    }
+                    else {
+                        PyErr_SetString(PyExc_RuntimeError, "mapping item is not marked");
+                        self->halt = 1;
+                        return;
+                    }
+                }
+            }
+        }
+        else {
+            PyErr_SetString(PyExc_TypeError,
+                    "value of _syck.Map must be a list of pairs or a dictionary");
+            self->halt = 1;
+            return;
+        }
+
+        syck_emit_end(emitter);
+    }
+
+    else if (PyObject_TypeCheck((PyObject *)node, &PySyckScalar_Type)) {
+        if (PyString_AsStringAndSize(node->value, &str, &len) < 0) {
+            self->halt = 1;
+            return;
+        }
+        syck_emit_scalar(emitter, tag, ((PySyckScalarObject *)node)->style,
+                ((PySyckScalarObject *)node)->indent,
+                ((PySyckScalarObject *)node)->width,
+                ((PySyckScalarObject *)node)->chomp, str, len);
+    }
+
+    else {
+        PyErr_SetString(PyExc_TypeError, "Node instance is required");
+        self->halt = 1;
+        return;
+    }   
+}
+static void
+PySyckEmitter_write_handler(SyckEmitter *emitter, char *buf, long len)
+{
+    PySyckEmitterObject *self = (PySyckEmitterObject *)emitter->bonus;
+
+    if (!PyObject_CallMethod(self->output, "write", "(s#)", buf, len))
+        self->halt = 1;
+}
+
+static int
+PySyckEmitter_init(PySyckEmitterObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *output = NULL;
+    int headless = 0;
+    int use_header = 0;
+    int use_version = 0;
+    int explicit_typing = 0;
+    PyObject *style = NULL;
+    int best_width = 80;
+    int indent = 2;
+
+    char *str;
+
+    static char *kwdlist[] = {"output", "headless", "use_header",
+        "use_version", "explicit_typing", "style",
+        "best_width", "indent", NULL};
+
+    PySyckEmitter_clear(self);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iiiiOii", kwdlist,
+                &output, &headless, &use_header, &use_version,
+                &explicit_typing, &style, &best_width, &indent))
+        return -1;
+
+    if (best_width <= 0) {
+        PyErr_SetString(PyExc_ValueError, "'best_width' must be positive");
+        return -1;
+    }
+    if (indent <= 0) {
+        PyErr_SetString(PyExc_ValueError, "'indent' must be positive");
+        return -1;
+    }
+
+    if (!style || style == Py_None) {
+        self->style = scalar_none;
+    }
+    else {
+        if (!PyString_Check(style)) {
+            PyErr_SetString(PyExc_TypeError, "'style' must be a string or None");
+            return -1;
+        }
+
+        str = PyString_AsString(style);
+        if (!str) return -1;
+
+        if (strcmp(str, "1quote") == 0)
+            self->style = scalar_1quote;
+        else if (strcmp(str, "2quote") == 0)
+            self->style = scalar_2quote;
+        else if (strcmp(str, "fold") == 0)
+            self->style = scalar_fold;
+        else if (strcmp(str, "literal") == 0)
+            self->style = scalar_literal;
+        else if (strcmp(str, "plain") == 0)
+            self->style = scalar_plain;
+        else {
+            PyErr_SetString(PyExc_ValueError, "unknown 'style'");
+            return -1;
+        }
+    }
+
+    self->headless = headless;
+    self->use_header = use_header;
+    self->use_version = use_version;
+    self->explicit_typing = explicit_typing;
+    self->best_width = best_width;
+    self->indent = indent;
+
+    Py_INCREF(output);
+    self->output = output;
+
+/*
+    self->emitter = syck_new_emitter();
+    self->emitter->bonus = self;
+    self->emitter->headless = self->headless;
+    self->emitter->use_header = use_header;
+    self->emitter->use_version = use_version;
+    self->emitter->explicit_typing = explicit_typing;
+    self->emitter->style = self->style;
+    self->emitter->best_width = self->best_width;
+    self->emitter->indent = self->indent;
+
+    syck_emitter_handler(self->emitter, PySyckEmitter_node_handler);
+    syck_output_handler(self->emitter, PySyckEmitter_write_handler);
+*/
+
+    self->emitting = 0;
+    self->halt = 0;
+
+    return 0;
+}
+
+static int
+PySyckEmitter_mark(PySyckEmitterObject *self, PyObject *root_node)
+{
+    int current, last;
+    int j, k, l;
+    PySyckNodeObject *node;
+    PyObject *item, *key, *value, *pair;
+    PyObject *index;
+    int dict_pos;
+
+    last = 0;
+    syck_emitter_mark_node(self->emitter, last);
+    if (PyList_Append(self->symbols, root_node) < 0)
+        return -1;
+    index = PyInt_FromLong(last);
+    if (!index) return -1;
+    if (PyDict_SetItem(self->nodes, root_node, index) < 0) {
+        Py_DECREF(index);
+        return -1;
+    }
+    Py_DECREF(index);
+
+    for (current = 0; current < PyList_GET_SIZE(self->symbols); current++) {
+
+        node = (PySyckNodeObject *)PyList_GET_ITEM(self->symbols, current);
+
+        if (PyObject_TypeCheck((PyObject *)node, &PySyckSeq_Type)) {
+            if (!PyList_Check(node->value)) {
+                PyErr_SetString(PyExc_TypeError, "value of _syck.Seq must be a list");
+                return -1;
+            }
+            l = PyList_GET_SIZE(node->value);
+            for (k = 0; k < l; k ++) {
+                item = PyList_GET_ITEM(node->value, k);
+                if ((index = PyDict_GetItem(self->nodes, item))) {
+                    syck_emitter_mark_node(self->emitter, PyInt_AS_LONG(index));
+                }
+                else {
+                    syck_emitter_mark_node(self->emitter, ++last);
+                    if (PyList_Append(self->symbols, item) < 0)
+                        return -1;
+                    index = PyInt_FromLong(last);
+                    if (!index) return -1;
+                    if (PyDict_SetItem(self->nodes, item, index) < 0) {
+                        Py_DECREF(index);
+                        return -1;
+                    }
+                    Py_DECREF(index);
+                }
+            }
+        }
+
+        else if (PyObject_TypeCheck((PyObject *)node, &PySyckMap_Type)) {
+            
+            if (PyList_Check(node->value)) {
+                l = PyList_GET_SIZE(node->value);
+                for (k = 0; k < l; k ++) {
+                    pair = PyList_GET_ITEM(node->value, k);
+                    if (!PyTuple_Check(pair) || PyTuple_GET_SIZE(pair) != 2) {
+                        PyErr_SetString(PyExc_TypeError,
+                                "value of _syck.Map must be a list of pairs or a dictionary");
+                        return -1;
+                    }
+                    for (j = 0; j < 2; j++) {
+                        item = PyTuple_GET_ITEM(pair, j);
+                        if ((index = PyDict_GetItem(self->nodes, item))) {
+                            syck_emitter_mark_node(self->emitter, PyInt_AS_LONG(index));
+                        }
+                        else {
+                            syck_emitter_mark_node(self->emitter, ++last);
+                            if (PyList_Append(self->symbols, item) < 0)
+                                return -1;
+                            index = PyInt_FromLong(last);
+                            if (!index) return -1;
+                            if (PyDict_SetItem(self->nodes, item, index) < 0) {
+                                Py_DECREF(index);
+                                return -1;
+                            }
+                            Py_DECREF(index);
+                        }
+                    }
+                }
+                
+            }
+            else if (PyDict_Check(node->value)) {
+                dict_pos = 0;
+                while (PyDict_Next(node->value, &dict_pos, &key, &value)) {
+                    for (j = 0; j < 2; j++) {
+                        item = j ? value : key;
+                        if ((index = PyDict_GetItem(self->nodes, item))) {
+                            syck_emitter_mark_node(self->emitter, PyInt_AS_LONG(index));
+                        }
+                        else {
+                            syck_emitter_mark_node(self->emitter, ++last);
+                            if (PyList_Append(self->symbols, item) < 0)
+                                return -1;
+                            index = PyInt_FromLong(last);
+                            if (!index) return -1;
+                            if (PyDict_SetItem(self->nodes, item, index) < 0) {
+                                Py_DECREF(index);
+                                return -1;
+                            }
+                            Py_DECREF(index);
+                        }
+                    }
+                }
+            }
+            else {
+                PyErr_SetString(PyExc_TypeError,
+                        "value of _syck.Map must be a list of pairs or a dictionary");
+                return -1;
+            }
+        }
+
+        else if (!PyObject_TypeCheck((PyObject *)node, &PySyckScalar_Type)) {
+            PyErr_SetString(PyExc_TypeError, "Node instance is required");
+            return -1;
+        }   
+    }
+    return 0;
+}
+
+static PyObject *
+PySyckEmitter_emit(PySyckEmitterObject *self, PyObject *args)
+{
+    PyObject *node;
+
+    if (self->emitting) {
+        PyErr_SetString(PyExc_RuntimeError, "do not call Emitter.emit while it is already emitting");
+        return NULL;
+    }
+
+    if (self->halt) {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    if (!PyArg_ParseTuple(args, "O", &node))
+        return NULL;
+
+    self->emitting = 1;
+
+
+    self->symbols = PyList_New(0);
+    if (!self->symbols) {
+        return NULL;
+    }
+    self->nodes = PyDict_New();
+    if (!self->nodes) {
+        Py_DECREF(self->symbols);
+        self->symbols = NULL;
+        return NULL;
+    }
+
+    self->emitter = syck_new_emitter();
+    self->emitter->bonus = self;
+    self->emitter->headless = self->headless;
+    self->emitter->use_header = self->use_header;
+    self->emitter->use_version = self->use_version;
+    self->emitter->explicit_typing = self->explicit_typing;
+    self->emitter->style = self->style;
+    self->emitter->best_width = self->best_width;
+    self->emitter->indent = self->indent;
+
+    syck_emitter_handler(self->emitter, PySyckEmitter_node_handler);
+    syck_output_handler(self->emitter, PySyckEmitter_write_handler);
+
+    if (PySyckEmitter_mark(self, node) < 0) {
+        Py_DECREF(self->symbols);
+        self->symbols = NULL;
+        Py_DECREF(self->nodes);
+        self->nodes = NULL;
+        self->emitting = 0;
+        self->halt = 1;
+        syck_free_emitter(self->emitter);
+        self->emitter = NULL;
+        return NULL;
+    }
+
+    syck_emit(self->emitter, 0);
+    syck_emitter_flush(self->emitter, 0);
+
+    syck_free_emitter(self->emitter);
+    self->emitter = NULL;
+
+    self->emitting = 0;
+
+    Py_DECREF(self->symbols);
+    self->symbols = NULL;
+    Py_DECREF(self->nodes);
+    self->nodes = NULL;
+
+    if (self->halt) return NULL;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyDoc_STRVAR(PySyckEmitter_emit_doc,
+    "emit(root_node) -> None\n\n"
+    "Emit the Node tree to the output.\n");
+
+static PyMethodDef PySyckEmitter_methods[] = {
+    {"emit",  (PyCFunction)PySyckEmitter_emit,
+        METH_VARARGS, PySyckEmitter_emit_doc},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PySyckEmitter_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                          /* ob_size */
+    "_syck.Emitter",                            /* tp_name */
+    sizeof(PySyckEmitterObject),                /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    (destructor)PySyckEmitter_dealloc,          /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_compare */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    0,                                          /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
+    PySyckEmitter_doc,                          /* tp_doc */
+    (traverseproc)PySyckEmitter_traverse,       /* tp_traverse */
+    (inquiry)PySyckEmitter_clear,               /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    PySyckEmitter_methods,                      /* tp_methods */
+    0,                                          /* tp_members */
+    PySyckEmitter_getsetters,                   /* tp_getset */
+    0,                                          /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)PySyckEmitter_init,               /* tp_init */
+    0,                                          /* tp_alloc */
+    PySyckEmitter_new,                          /* tp_new */
+};
+
+/****************************************************************************
  * The module _syck.
  ****************************************************************************/
 
@@ -1355,6 +2048,8 @@ init_syck(void)
     if (PyType_Ready(&PySyckMap_Type) < 0)
         return;
     if (PyType_Ready(&PySyckParser_Type) < 0)
+        return;
+    if (PyType_Ready(&PySyckEmitter_Type) < 0)
         return;
     
     PySyck_Error = PyErr_NewException("_syck.error", NULL, NULL);
@@ -1388,25 +2083,23 @@ init_syck(void)
     Py_INCREF(PySyck_Error);
     if (PyModule_AddObject(m, "error", (PyObject *)PySyck_Error) < 0)
         return;
-
     Py_INCREF(&PySyckNode_Type);
     if (PyModule_AddObject(m, "Node", (PyObject *)&PySyckNode_Type) < 0)
         return;
-
     Py_INCREF(&PySyckScalar_Type);
     if (PyModule_AddObject(m, "Scalar", (PyObject *)&PySyckScalar_Type) < 0)
         return;
-
     Py_INCREF(&PySyckSeq_Type);
     if (PyModule_AddObject(m, "Seq", (PyObject *)&PySyckSeq_Type) < 0)
         return;
-
     Py_INCREF(&PySyckMap_Type);
     if (PyModule_AddObject(m, "Map", (PyObject *)&PySyckMap_Type) < 0)
         return;
-
     Py_INCREF(&PySyckParser_Type);
     if (PyModule_AddObject(m, "Parser", (PyObject *)&PySyckParser_Type) < 0)
+        return;
+    Py_INCREF(&PySyckEmitter_Type);
+    if (PyModule_AddObject(m, "Emitter", (PyObject *)&PySyckEmitter_Type) < 0)
         return;
 }
 

@@ -33,7 +33,7 @@ class TestNodes(unittest.TestCase):
         self.assertRaises(TypeError, lambda: setattr(scalar, 'value', None))
         self.assertRaises(TypeError, lambda: setattr(scalar, 'value', []))
         self.assertRaises(TypeError, lambda: setattr(scalar, 'tag', []))
-        self.assertRaises(TypeError, lambda: setattr(scalar, 'style', 'block'))
+        self.assertRaises(ValueError, lambda: setattr(scalar, 'style', 'block'))
         self.assertRaises(TypeError, lambda: setattr(scalar, 'style', []))
         self.assertRaises(TypeError, lambda: setattr(scalar, 'indent', '1'))
         self.assertRaises(TypeError, lambda: setattr(scalar, 'width', '1'))
