@@ -1,20 +1,31 @@
 
-"""
-sdgsdf gsfdg sfdg sfd gsdfg
-"""
+# Python 2.2 compatibility
+from __future__ import generators
+
+try:
+    import datetime
+except ImportError:
+    pass
+
+try:
+    import sets
+except ImportError:
+    class _sets:
+        def Set(self, items):
+            set = {}
+            for items in items:
+                set[items] = None
+            return set
+    sets = _sets()
 
 import _syck
 
-import re, datetime, sets
+import re
 
 __all__ = ['GenericLoader', 'Loader',
     'parse', 'load', 'parse_documents', 'load_documents']
 
 class GenericLoader(_syck.Parser):
-    """
-    ssdfg sfdgs dfgsdfgs
-    sdfgs dfgsfdgsfgsfdgsfdg sdfg
-    """
 
     def load(self):
         node = self.parse()

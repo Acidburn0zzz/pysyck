@@ -17,7 +17,13 @@ except ImportError:
 try:
     import sets
 except ImportError:
-    pass
+    class _sets:
+        def Set(self, items):
+            set = {}
+            for items in items:
+                set[items] = None
+            return set
+    sets = _sets()
 
 INF = 1e300000
 NAN = INF/INF
