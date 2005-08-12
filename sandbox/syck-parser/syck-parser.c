@@ -122,18 +122,18 @@ void traverse(SyckParser *p, int indent, SYMID id)
 
     switch (n->kind) {
         case syck_str_kind:
-            output(indent, "Node Scalar (%s):", n->type_id);
+            output(indent, "[%d] Node Scalar (%s):", id, n->type_id);
             output(indent+1, "Value: '%s'", n->data.str->ptr);
             break;
         case syck_seq_kind:
-            output(indent, "Node Sequence (%s):", n->type_id);
+            output(indent, "[%d] Node Sequence (%s):", id, n->type_id);
             for (i = 0; i < syck_seq_count(n); i++) {
                 output(indent+1, "Item #%d:", i+1);
                 traverse(p, indent+2, syck_seq_read(n, i));
             }
             break;
         case syck_map_kind:
-            output(indent, "Node Mapping (%s):", n->type_id);
+            output(indent, "[%d] Node Mapping (%s):", id, n->type_id);
             for (i = 0; i < syck_map_count(n); i++) {
                 output(indent+1, "Key #%d:", i+1);
                 traverse(p, indent+2, syck_map_read(n, map_key, i));

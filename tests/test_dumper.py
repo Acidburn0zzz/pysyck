@@ -1,7 +1,7 @@
 
 import unittest
 import syck
-import StringIO
+import StringIO, datetime, sets
 import test_emitter
 
 EXAMPLE = {
@@ -14,6 +14,43 @@ SIMPLE_EXAMPLE = [
     'Mark McGwire',
     'Sammy Sosa',
     'Ken Griffey',
+]
+
+ALIAS_SCALAR = ["foo, bar, and baz"]
+ALIAS_SCALAR.append(ALIAS_SCALAR[0])
+ALIAS_SCALAR.append(ALIAS_SCALAR[0])
+ALIAS_SCALAR.append(ALIAS_SCALAR[0])
+
+ALIAS_SEQ = [['foo', ['bar']]]
+ALIAS_SEQ.append(ALIAS_SEQ[0])
+ALIAS_SEQ.append(ALIAS_SEQ[0])
+
+ALIAS_MAP = [{'foo': 'bar'}]
+ALIAS_MAP.append(ALIAS_MAP[0])
+
+ODD_ALIASES = [
+    [None]*2,
+    [0]*3,
+    [1]*4,
+    [100]*5,
+    ['']*6,
+    ['foo']*7,
+]
+
+INF = 1e300000
+NAN = INF/INF
+
+SCALARS = [
+    None,
+    True, False,
+    0, 123, -4567,
+    123.4e-5, INF, NAN,
+    'foo, bar, baz',
+    datetime.datetime(2001, 12, 15, 2, 59, 43, 100000),
+]
+
+COLLECTIONS = [
+    sets.Set(range(10)),
 ]
 
 class TestOutput(unittest.TestCase):
@@ -71,4 +108,41 @@ class TestEmitter(unittest.TestCase):
         nodes = syck.parse_documents(output)
         self.assertEqual(map(test_emitter.strip, self._get_examples()),
                 map(test_emitter.strip, nodes))
+
+class TestAliases(unittest.TestCase):
+
+    def testAliases(self):
+        self._testAlias(ALIAS_SCALAR)
+        self._testAlias(ALIAS_SEQ)
+        self._testAlias(ALIAS_MAP)
+
+    def _testAlias(self, objects):
+        objects = syck.load(syck.dump(objects))
+        for object in objects:
+            self.assert_(object is objects[0])
+
+class TestNoOddAliases(unittest.TestCase):
+
+    def testOddAliases(self):
+        document = syck.parse(syck.dump(ODD_ALIASES))
+        for group in document.value:
+            for item in group.value[1:]:
+                self.assert_(item is not group.value[0])
+
+class TestScalarTypes(unittest.TestCase):
+
+    def testScalarTypes(self):
+        scalars = syck.load(syck.dump(SCALARS))
+        for a, b in zip(scalars, SCALARS):
+            self.assertEqual(type(a), type(b))
+            self.assertEqual(a, b)
+
+class TestCollectionTypes(unittest.TestCase):
+
+    def testCollectionTypes(self):
+        collections = syck.load(syck.dump(COLLECTIONS))
+        for a, b in zip(collections, COLLECTIONS):
+            self.assertEqual(type(a), type(b))
+            self.assertEqual(a, b)
+
 

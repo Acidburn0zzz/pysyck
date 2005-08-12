@@ -130,6 +130,11 @@ baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
     'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
 }
 
+ALIASES = """
+foo: &bar baz
+bar: *bar
+"""
+
 class TestDocuments(test_parser.TestDocuments):
 
     def _testDocuments(self, source, length):
@@ -256,4 +261,18 @@ class TestCollections(unittest.TestCase):
 
     def testSet(self):
         self.assertEqual(syck.load(SET[0]), SET[1])
+
+class TestAliasesParsingAndLoading(unittest.TestCase):
+
+    def testAliasesParsing(self):
+        node = syck.parse(ALIASES)
+        values = node.value.values()
+        print values
+        print id(values[0])
+        print id(values[1])
+        self.assert_(values[0] is values[1])
+
+    def testAliasesLoading(self):
+        document = syck.load(ALIASES)
+        self.assert_(document['foo'] is document['bar'])
 

@@ -168,6 +168,11 @@ RECURSIVE = """
 - *id002
 """
 
+ALIASES = """
+- &alias foo
+- *alias
+"""
+
 class TestAttributes(unittest.TestCase):
 
     def testAttributes(self):
@@ -357,4 +362,11 @@ class TestRecursive(unittest.TestCase):
     def testRecursive(self):
         parser = _syck.Parser(RECURSIVE)
         self.assertRaises(TypeError, lambda: parser.parse())
+
+class TestParsingAliases(unittest.TestCase):
+
+    def testAliases(self):
+        parser = _syck.Parser(ALIASES)
+        node = parser.parse()
+        self.assert_(node.value[0] is node.value[1])
 

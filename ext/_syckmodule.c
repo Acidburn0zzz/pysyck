@@ -1058,7 +1058,7 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
                 PySyckSeq_new(&PySyckSeq_Type, NULL, NULL);
             if (!object) goto error;
             for (k = 0; k < node->data.list->idx; k++) {
-                index = syck_seq_read(node, k);
+                index = syck_seq_read(node, k)-1;
                 value = PyList_GetItem(self->symbols, index);
                 if (!value) goto error;
                 if (PyList_Append(object->value, value) < 0)
@@ -1072,10 +1072,10 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
             if (!object) goto error;
             for (k = 0; k < node->data.pairs->idx; k++)
             {
-                index = syck_map_read(node, map_key, k);
+                index = syck_map_read(node, map_key, k)-1;
                 key = PyList_GetItem(self->symbols, index);
                 if (!key) goto error;
-                index = syck_map_read(node, map_value, k);
+                index = syck_map_read(node, map_value, k)-1;
                 value = PyList_GetItem(self->symbols, index);
                 if (!value) goto error;
                 if (PyDict_SetItem(object->value, key, value) < 0)
@@ -1097,7 +1097,7 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
     if (PyList_Append(self->symbols, (PyObject *)object) < 0)
         goto error;
 
-    index = PyList_GET_SIZE(self->symbols)-1;
+    index = PyList_GET_SIZE(self->symbols);
     return index;
 
 error:
@@ -1267,7 +1267,7 @@ PySyckParser_parse(PySyckParserObject *self)
     }
 
     self->parsing = 1;
-    index = syck_parse(self->parser);
+    index = syck_parse(self->parser)-1;
     self->parsing = 0;
 
     if (self->halt || self->parser->eof) {
