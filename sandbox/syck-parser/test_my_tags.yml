@@ -1,0 +1,11 @@
+- !python/new:test_pickle.ACustomState
+    state: !python/tuple [1, two, [3, 4, 5]]
+- !python/new:test_pickle.InitArgs [1, two, [3, 4, 5]]
+- !python/new:test_pickle.InitArgs
+    args: 1
+    kwds: {bar: two, baz: [3, 4, 5]}
+- !python/new:test_pickle.InitArgsWithState
+    args: [1, two, [3, 4, 5]]
+    state: [3, 4, 5]
+- !python/new:test_pickle.NewArgs [1, two, [3, 4, 5]]
+

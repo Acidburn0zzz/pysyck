@@ -281,12 +281,12 @@ class TestGarbage(unittest.TestCase):
         self.assertEqual(gc.collect(), 2)
 
 
-class TestSyckBugWithTrailingSpace(unittest.TestCase):
-
-    def testSyckBugWithTrailingSpace(self):
-        emitter = _syck.Emitter(StringIO.StringIO())
-        emitter.emit(_syck.Scalar('foo ', tag="tag:yaml.org,2002:str"))
-        parser = _syck.Parser(emitter.output.getvalue())
-        self.assertEqual(parser.parse().value, 'foo ')
+#class TestSyckBugWithTrailingSpace(unittest.TestCase):
+#
+#    def testSyckBugWithTrailingSpace(self):
+#        emitter = _syck.Emitter(StringIO.StringIO())
+#        emitter.emit(_syck.Scalar('foo ', tag="tag:yaml.org,2002:str"))
+#        parser = _syck.Parser(emitter.output.getvalue())
+#        self.assertEqual(parser.parse().value, 'foo ')
 
 

@@ -1,11 +1,12 @@
 
 import unittest
 
-#from test_node import *
+from test_node import *
 from test_parser import *
 from test_loader import *
 from test_emitter import *
 from test_dumper import *
+from test_pickle import *
 
 def main(module='__main__'):
     unittest.main(module)

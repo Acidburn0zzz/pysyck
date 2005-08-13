@@ -1,0 +1,253 @@
+
+import unittest
+
+import syck
+
+SIMPLE = """
+- !python/none ~
+- !python/bool True
+- !python/bool False
+- !python/int 123
+- !python/long 12345678901234567890
+- !python/float 123.456
+- !python/float 123.4560000001
+- !python/str foo bar
+- !python/unicode FOO ФУ bar бар
+- !python/list [1, 2, 3]
+- !python/tuple [foo, bar]
+- !python/dict {foo: bar}
+""", [
+    None,
+    True,
+    False,
+    123,
+    12345678901234567890L,
+    123.456,
+    123.4560000001,
+    'foo bar',
+    unicode('FOO ФУ bar бар', 'utf-8'),
+    [1, 2, 3],
+    ('foo', 'bar'),
+    {'foo': 'bar'},
+]
+
+class AClass:
+    pass
+
+class ASubclass(AClass):
+    pass
+
+class AType(object):
+    pass
+
+class ASubtype(AType):
+    pass
+
+def a_function(*args, **kwds):
+    pass
+
+NAMES = """
+- !python/name:unittest.TestCase
+- !python/name:test_pickle.AClass
+- !python/name:test_pickle.ASubclass
+- !python/name:test_pickle.AType
+- !python/name:test_pickle.ASubtype
+- !python/name:test_pickle.a_function
+- !python/name:list
+- !python/name:__builtin__.dict
+- !python/name:file
+- !python/name:map
+- !python/name:type
+- !python/name:object
+""", [
+    unittest.TestCase,
+    AClass,
+    ASubclass,
+    AType,
+    ASubtype,
+    a_function,
+    list,
+    dict,
+    file,
+    map,
+    type,
+    object,
+]
+
+class AnObject(object):
+
+    def __new__(cls, foo=None, bar=None, baz=None):
+        self = object.__new__(cls)
+        self.foo = foo
+        self.bar = bar
+        self.baz = baz
+        return self
+
+    def __eq__(self, other):
+        return type(self) is type(other) and    \
+                (self.foo, self.bar, self.baz) == (other.foo, other.bar, other.baz)
+
+class AnInstance:
+
+    def __init__(self, foo=None, bar=None, baz=None):
+        self.foo = foo
+        self.bar = bar
+        self.baz = baz
+
+    def __eq__(self, other):
+        return type(self) is type(other) and    \
+                (self.foo, self.bar, self.baz) == (other.foo, other.bar, other.baz)
+
+class AState(AnInstance):
+
+    def __getstate__(self):
+        return {
+            '_foo': self.foo,
+            '_bar': self.bar,
+            '_baz': self.baz,
+        }
+
+    def __setstate__(self, state):
+        self.foo = state['_foo']
+        self.bar = state['_bar']
+        self.baz = state['_baz']
+
+OBJECTS = """
+- !python/object:test_pickle.AnObject
+    foo: 1
+    bar: two
+    baz: [3, 4, 5]
+- !python/object:test_pickle.AnInstance
+    foo: 1
+    bar: two
+    baz: [3, 4, 5]
+- !python/object:test_pickle.AState
+    _foo: 1
+    _bar: two
+    _baz: [3, 4, 5]
+""", [
+    AnObject(foo=1, bar='two', baz=[3,4,5]),
+    AnInstance(foo=1, bar='two', baz=[3,4,5]),
+    AState(foo=1, bar='two', baz=[3,4,5]),
+]
+
+class ACustomState(AnInstance):
+
+    def __getstate__(self):
+        return (self.foo, self.bar, self.baz)
+
+    def __setstate__(self, state):
+        self.foo, self.bar, self.baz = state
+
+class InitArgs(AnInstance):
+
+    def __getinitargs__(self):
+        return (self.foo, self.bar, self.baz)
+
+class InitArgsWithState(AnInstance):
+
+    def __getinitargs__(self):
+        return (self.foo, self.bar)
+
+    def __getstate__(self):
+        return self.baz[:]
+
+    def __setstate__(self, state):
+        self.baz = state[:]
+
+class NewArgs(AnObject):
+
+    def __getnewargs__(self):
+        return (self.foo, self.bar, self.baz)
+
+    def __getstate__(self):
+        return None
+
+class NewArgsWithState(AnObject):
+
+    def __getnewargs__(self):
+        return (self.foo, self.bar)
+
+    def __getstate__(self):
+        return self.baz[:]
+
+    def __setstate__(self, state):
+        self.baz = state[:]
+
+NEWS = """
+- !python/new:test_pickle.ACustomState
+    state: !python/tuple [1, two, [3, 4, 5]]
+- !python/new:test_pickle.InitArgs [1, two, [3, 4, 5]]
+- !python/new:test_pickle.InitArgs
+    args: [1]
+    kwds: {bar: two, baz: [3, 4, 5]}
+- !python/new:test_pickle.InitArgsWithState
+    args: [1, two, [3, 4, 5]]
+    state: [3, 4, 5]
+- !python/new:test_pickle.NewArgs [1, two, [3, 4, 5]]
+- !python/new:test_pickle.NewArgs
+    args: [1]
+    kwds: {bar: two, baz: [3, 4, 5]}
+- !python/new:test_pickle.NewArgsWithState
+    args: [1, two, [3, 4, 5]]
+    state: [3, 4, 5]
+""", [
+    ACustomState(foo=1, bar='two', baz=[3,4,5]),
+    InitArgs(foo=1, bar='two', baz=[3,4,5]),
+    InitArgs(foo=1, bar='two', baz=[3,4,5]),
+    InitArgsWithState(foo=1, bar='two', baz=[3,4,5]),
+    NewArgs(foo=1, bar='two', baz=[3,4,5]),
+    NewArgs(foo=1, bar='two', baz=[3,4,5]),
+    NewArgsWithState(foo=1, bar='two', baz=[3,4,5]),
+]
+
+class Reduce(AnObject):
+
+    def __reduce__(self):
+        return self.__class__, (self.foo, self.bar, self.baz)
+
+class ReduceWithState(AnObject):
+
+    def __reduce__(self):
+        return self.__class__, (self.foo, self.bar), self.baz[:]
+
+    def __setstate__(self, state):
+        self.baz = state[:]
+
+APPLIES = """
+- !python/apply:test_pickle.Reduce [1, two, [3, 4, 5]]
+- !python/apply:test_pickle.Reduce
+    args: [1]
+    kwds: {bar: two, baz: [3, 4, 5]}
+- !python/apply:test_pickle.ReduceWithState
+    args: [1, two]
+    state: [3, 4, 5]
+""", [
+    Reduce(foo=1, bar='two', baz=[3,4,5]),
+    Reduce(foo=1, bar='two', baz=[3,4,5]),
+    ReduceWithState(foo=1, bar='two', baz=[3,4,5]),
+]
+
+class TestPickle(unittest.TestCase):
+
+    def testSimple(self):
+        self._testPickle(SIMPLE)
+
+    def testNames(self):
+        self._testPickle(NAMES)
+
+    def testObjects(self):
+        self._testPickle(OBJECTS)
+
+    def testNews(self):
+        self._testPickle(NEWS)
+
+    def testApplies(self):
+        self._testPickle(APPLIES)
+
+    def _testPickle(self, (source, object)):
+        for left, right in zip(syck.load(source), object):
+            self.assertEqual(left, right)
+        for left, right in zip(syck.load(syck.dump(object)), object):
+            self.assertEqual(left, right)
+
