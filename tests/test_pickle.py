@@ -84,6 +84,10 @@ class AnObject(object):
         self.baz = baz
         return self
 
+    def __cmp__(self, other):
+        return cmp((type(self), self.foo, self.bar, self.baz),
+                (type(other), other.foo, other.bar, other.baz))
+
     def __eq__(self, other):
         return type(self) is type(other) and    \
                 (self.foo, self.bar, self.baz) == (other.foo, other.bar, other.baz)
@@ -94,6 +98,10 @@ class AnInstance:
         self.foo = foo
         self.bar = bar
         self.baz = baz
+
+    def __cmp__(self, other):
+        return cmp((type(self), self.foo, self.bar, self.baz),
+                (type(other), other.foo, other.bar, other.baz))
 
     def __eq__(self, other):
         return type(self) is type(other) and    \

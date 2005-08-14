@@ -120,9 +120,11 @@ class Dumper(GenericDumper):
         return _syck.Seq(list(object), tag="tag:python.yaml.org,2002:tuple")
 
     def represent_type(self, object):
+        # TODO: Python 2.2 does not provide the module name of a function
         name = '%s.%s' % (object.__module__, object.__name__)
         return _syck.Scalar('', tag="tag:python.yaml.org,2002:name:"+name)
     represent_classobj = represent_type
+    represent_class = represent_type
     represent_function = represent_type
     represent_builtin_function_or_method = represent_type
 
@@ -152,6 +154,7 @@ class Dumper(GenericDumper):
         cls = type(object)
         class_name = '%s.%s' % (cls.__module__, cls.__name__)
         args = ()
+        state = {}
         if cls.__reduce__ is type.__reduce__:
             if hasattr(object, '__reduce_ex__'):
                 reduce = object.__reduce_ex__(2)
