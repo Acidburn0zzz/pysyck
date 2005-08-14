@@ -226,7 +226,8 @@ class EqualStructure:
         elif node.kind == 'seq':
             self.assertEqual(type(structure), list)
             self.assertEqual(len(node.value), len(structure))
-            for i, item in enumerate(node.value):
+            for i in range(len(node.value)):
+                item = node.value[i]
                 self.assertEqualStructure(item, structure[i])
         elif node.kind == 'map':
             self.assertEqual(type(structure), dict)

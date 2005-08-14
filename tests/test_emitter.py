@@ -162,18 +162,18 @@ class TestAttributes(unittest.TestCase):
     def testHeadless(self):
         emitter = _syck.Emitter(StringIO.StringIO(), headless=False)
         emitter.emit(CYCLE)
-        self.assert_('---' in emitter.output.getvalue())
+        self.assert_(emitter.output.getvalue().find('---') != -1)
         emitter = _syck.Emitter(StringIO.StringIO(), headless=True)
         emitter.emit(CYCLE)
-        self.assert_('---' not in emitter.output.getvalue())
+        self.assert_(emitter.output.getvalue().find('---') == -1)
 
     def testUseHeader(self):
         emitter = _syck.Emitter(StringIO.StringIO(), headless=True)
         emitter.emit(EXAMPLE)
-        self.assert_('---' not in emitter.output.getvalue())
+        self.assert_(emitter.output.getvalue().find('---') == -1)
         emitter = _syck.Emitter(StringIO.StringIO(), use_header=True)
         emitter.emit(EXAMPLE)
-        self.assert_('---' in emitter.output.getvalue())
+        self.assert_(emitter.output.getvalue().find('---') != -1)
 
     def testExplicitTyping(self):
         pass    # anyway it's Syck's responsibility to interpret correctly the parameters.
@@ -234,7 +234,8 @@ class TestTags(unittest.TestCase):
         parser = _syck.Parser(emitter.output.getvalue())
         document = parser.parse()
         self.assertEqual(len(document.value), len(TAGS))
-        for index, node in enumerate(document.value):
+        for index in range(len(document.value)):
+            node = document.value[index]
             self.assertEqual(node.tag, TAGS[index])
 
 class TestInvalidNodes(unittest.TestCase):

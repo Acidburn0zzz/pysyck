@@ -1,8 +1,30 @@
 
+from __future__ import generators
+
 import unittest
 import syck
-import StringIO, datetime, sets
+import StringIO
 import test_emitter
+
+try:
+    import datetime
+except:
+    class _datetime:
+        def datetime(self, *args):
+            return args
+    datetime = _datetime()
+
+try:
+    import sets
+except:
+    class _sets:
+        def Set(self, items):
+            set = {}
+            for items in items:
+                set[items] = None
+            return set
+    sets = _sets()
+
 
 EXAMPLE = {
     'foo': 'bar',
@@ -135,7 +157,10 @@ class TestScalarTypes(unittest.TestCase):
         scalars = syck.load(syck.dump(SCALARS))
         for a, b in zip(scalars, SCALARS):
             self.assertEqual(type(a), type(b))
-            self.assertEqual(a, b)
+            if type(a) is float:
+                self.assertEqual(repr(a), repr(b))
+            else:
+                self.assertEqual(a, b)
 
 class TestCollectionTypes(unittest.TestCase):
 

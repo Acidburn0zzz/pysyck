@@ -188,14 +188,10 @@ class TestValuesAndSources(test_parser.TestValuesAndSources):
         tempfile = os.tmpfile()
         tempfile.write(source)
         tempfile.seek(0)
-        try:
-            self.assertEqualStructure(syck.parse(tempfile), structure)
-            tempfile.seek(0)
-            self.assertEqual(syck.load(tempfile), structure)
-            tempfile.seek(0)
-        except:
-            os.remove(filename)
-            raise
+        self.assertEqualStructure(syck.parse(tempfile), structure)
+        tempfile.seek(0)
+        self.assertEqual(syck.load(tempfile), structure)
+        tempfile.seek(0)
 
 class TestImplicitScalars(unittest.TestCase):
 
@@ -209,15 +205,15 @@ class TestImplicitScalars(unittest.TestCase):
         self.assertEqual(syck.load('- yes\n- NO\n- True\n- on\n'), [True, False, True, True])
 
     def testFloat(self):
-        self.assertAlmostEqual(syck.load('6.8523015e+5'), 685230.15)
+        self.assertEqual(syck.load('6.8523015e+5'), 685230.15)
         # Syck does not understand '_'.
         #self.assertAlmostEqual(syck.load('685.230_15e+03'), 685230.15)
         #self.assertAlmostEqual(syck.load('685_230.15'), 685230.15)
-        self.assertAlmostEqual(syck.load('685.23015e+03'), 685230.15)
-        self.assertAlmostEqual(syck.load('685230.15'), 685230.15)
-        self.assertAlmostEqual(syck.load('190:20:30.15'), 685230.15)
-        self.assertEqual(syck.load('-.inf'), -INF)
-        self.assertEqual(syck.load('.nan'), NAN)
+        self.assertEqual(syck.load('685.23015e+03'), 685230.15)
+        self.assertEqual(syck.load('685230.15'), 685230.15)
+        self.assertEqual(syck.load('190:20:30.15'), 685230.15)
+        self.assertEqual(repr(syck.load('-.inf')), repr(-INF))
+        self.assertEqual(repr(syck.load('.nan')), repr(NAN))
 
     def testInteger(self):
         # Syck does not understand '_' and binary integer.

@@ -25,7 +25,8 @@ class GenericDumper(_syck.Emitter):
         node = self.represent(object)
         object_to_node[id(object)] = object, node
         if node.kind == 'seq':
-            for index, item in enumerate(node.value):
+            for index in range(len(node.value)):
+                item = node.value[index]
                 node.value[index] = self._convert(item, object_to_node)
         elif node.kind == 'map':
             for key in node.value.keys():
