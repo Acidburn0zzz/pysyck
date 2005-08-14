@@ -204,7 +204,7 @@ class Dumper(GenericDumper):
             return False
         return True
 
-def emit(node, output=None, **parameters):
+def emit(node, output=None, Dumper=Dumper, **parameters):
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -213,7 +213,7 @@ def emit(node, output=None, **parameters):
     if output is None:
         return dumper.output.getvalue()
 
-def dump(object, output=None, **parameters):
+def dump(object, output=None, Dumper=Dumper, **parameters):
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -222,7 +222,7 @@ def dump(object, output=None, **parameters):
     if output is None:
         return dumper.output.getvalue()
 
-def emit_documents(nodes, output=None, **parameters):
+def emit_documents(nodes, output=None, Dumper=Dumper, **parameters):
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -232,7 +232,7 @@ def emit_documents(nodes, output=None, **parameters):
     if output is None:
         return dumper.output.getvalue()
 
-def dump_documents(objects, output=None, **parameters):
+def dump_documents(objects, output=None, Dumper=Dumper, **parameters):
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:

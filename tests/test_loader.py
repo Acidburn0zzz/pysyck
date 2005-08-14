@@ -135,6 +135,11 @@ foo: &bar baz
 bar: *bar
 """
 
+MUTABLE_KEY = """
+? []
+: []
+"""
+
 class TestDocuments(test_parser.TestDocuments):
 
     def _testDocuments(self, source, length):
@@ -180,11 +185,14 @@ class TestValuesAndSources(test_parser.TestValuesAndSources):
         self.assertEqual(syck.load(source), structure)
 
     def _testFileValues(self, (source, structure)):
-        filename = os.tempnam('/tmp', '_syck_test_')
-        file(filename, 'wb').write(source)
+        tempfile = os.tmpfile()
+        tempfile.write(source)
+        tempfile.seek(0)
         try:
-            self.assertEqualStructure(syck.parse(file(filename)), structure)
-            self.assertEqual(syck.load(file(filename)), structure)
+            self.assertEqualStructure(syck.parse(tempfile), structure)
+            tempfile.seek(0)
+            self.assertEqual(syck.load(tempfile), structure)
+            tempfile.seek(0)
         except:
             os.remove(filename)
             raise
@@ -267,12 +275,18 @@ class TestAliasesParsingAndLoading(unittest.TestCase):
     def testAliasesParsing(self):
         node = syck.parse(ALIASES)
         values = node.value.values()
-        print values
-        print id(values[0])
-        print id(values[1])
         self.assert_(values[0] is values[1])
 
     def testAliasesLoading(self):
         document = syck.load(ALIASES)
         self.assert_(document['foo'] is document['bar'])
 
+class TestMutableKey(unittest.TestCase):
+
+    def testMutableKey(self):
+        document = syck.load(MUTABLE_KEY)
+        self.assertEqual(type(document), list)
+        self.assertEqual(len(document), 1)
+        self.assertEqual(type(document[0]), tuple)
+        self.assertEqual(len(document[0]), 2)
+        self.assertEqual(document[0][0], document[0][1])

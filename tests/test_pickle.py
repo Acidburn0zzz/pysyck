@@ -1,3 +1,4 @@
+# coding: utf-8
 
 import unittest
 
@@ -249,5 +250,76 @@ class TestPickle(unittest.TestCase):
         for left, right in zip(syck.load(source), object):
             self.assertEqual(left, right)
         for left, right in zip(syck.load(syck.dump(object)), object):
+            self.assertEqual(left, right)
+
+class MyPrivateType(AnObject):
+    pass
+
+class MyPublicType(AnObject):
+    pass
+
+class MyMapping(AnObject):
+
+    def yaml_construct(cls, node):
+        return cls(**node.value)
+    yaml_construct = classmethod(yaml_construct)
+
+    def yaml_represent(self, node):
+        return syck.Map(self.__dict__.copy(), inline=True)
+
+EXTENSIONS = """
+- !!MyPrivateType [1, 2, 3]
+- !domain.tld,2005/MyPublicType [1, 2, 3]
+- !domain.tld,2005/AnotherPublicType [1, 2, 3]
+- {foo: 1, bar: 2, baz: 3}
+""", [
+    MyPrivateType(1,2,3),
+    MyPublicType(1,2,3),
+    MyPublicType(1,2,3),
+    MyMapping(1,2,3),
+]
+
+class ExLoader(syck.Loader):
+
+    def find_constructor(self, node):
+        if node.kind == 'map':
+            return MyMapping.yaml_construct
+        return super(ExLoader, self).find_constructor(node)
+
+    def make_mapping(self, node):
+        return MyMapping(**node.value)
+
+    def construct_private_MyPrivateType(self, node):
+        return MyPrivateType(*node.value)
+
+    def construct_domain_tld_2005(self, node):
+        return MyPublicType(*node.value)
+
+class ExDumper(syck.Dumper):
+
+    def find_representer(self, object):
+        if isinstance(object, MyMapping):
+            return object.yaml_represent
+        return super(ExDumper, self).find_representer(object)
+
+    def represent_test_pickle_MyPrivateType(self, object):
+        return syck.Seq([object.foo, object.bar, object.baz],
+                tag="x-private:MyPrivateType", inline=True)
+
+    def represent_test_pickle_MyPublicType(self, object):
+        return syck.Seq([object.foo, object.bar, object.baz],
+                tag="tag:domain.tld,2005:APublicType", inline=True)
+
+class TestExtensions(unittest.TestCase):
+
+    def testExtensions(self):
+        source = EXTENSIONS[0]
+        object = EXTENSIONS[1]
+        object2 = syck.load(source, Loader=ExLoader)
+        for left, right in zip(object, object2):
+            self.assertEqual(left, right)
+        source2 = syck.dump(object2, Dumper=ExDumper)
+        object3 = syck.load(source2, Loader=ExLoader)
+        for left, right in zip(object, object3):
             self.assertEqual(left, right)
 

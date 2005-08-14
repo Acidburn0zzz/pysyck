@@ -49,10 +49,10 @@ class GenericLoader(_syck.Parser):
                 key_object = self._convert(key_node, node_to_object)
                 value_object = self._convert(node.value[key_node],
                         node_to_object)
-                if key_object in value:
-                    value = None
-                    break
                 try:
+                    if key_object in value:
+                        value = None
+                        break
                     value[key_object] = value_object
                 except TypeError:
                     value = None
@@ -60,7 +60,7 @@ class GenericLoader(_syck.Parser):
             if value is None:
                 value = []
                 for key_node in node.value:
-                    key_object = self_convert(key_node, node_to_object)
+                    key_object = self._convert(key_node, node_to_object)
                     value_object = self._convert(node.value[key_node],
                             node_to_object)
                 value.append((key_object, value_object))
@@ -337,28 +337,28 @@ class Loader(GenericLoader):
         self.set_python_state(object, state)
         return object
 
-def parse(source):
+def parse(source, Loader=Loader, **parameters):
     """Parses 'source' and returns the root of the 'Node' graph."""
-    loader = Loader(source)
+    loader = Loader(source, **parameters)
     return loader.parse()
 
-def load(source):
+def load(source, Loader=Loader, **parameters):
     """Parses 'source' and returns the root object."""
-    loader = Loader(source)
+    loader = Loader(source, **parameters)
     return loader.load()
 
-def parse_documents(source):
+def parse_documents(source, Loader=Loader, **parameters):
     """Iterates over 'source' and yields the root node of each document."""
-    loader = Loader(source)
+    loader = Loader(source, **parameters)
     while True:
         node = loader.parse()
         if loader.eof:
             break
         yield node
 
-def load_documents(source):
+def load_documents(source, Loader=Loader, **parameters):
     """Iterates over 'source' and yields the root object of each document."""
-    loader = Loader(source)
+    loader = Loader(source, **parameters)
     while True:
         object = loader.load()
         if loader.eof:
