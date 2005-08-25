@@ -1,15 +1,16 @@
 
+ALL = emit-it complex-key-bug trailing-space-bug
+
 .PHONY: default clean
 
-default: emit-it
+default: $(ALL)
 
 clean:
-	rm -f emit-it
-	rm -f emit-it.o
+	rm -f *.o
+	rm -f $(ALL)
 
-emit-it: emit-it.o
-	gcc emit-it.o -o emit-it -lsyck -L${HOME}/lib -Wall -Wstrict-prototypes
+%.o: %.c
+	gcc -c $< -o $@ -Wall -Wstrict-prototypes -I${HOME}/include
 
-emit-it.o: emit-it.c
-	gcc -c emit-it.c -o emit-it.o -I${HOME}/include
-
+$(ALL): %: %.o
+	gcc $< -o $@ -lsyck -L${HOME}/lib -Wall -Wstrict-prototypes

@@ -42,7 +42,7 @@ static PyObject *PySyck_KeepChomp;
 
 PyDoc_STRVAR(PySyckNode_doc,
     "_syck.Node() -> TypeError\n\n"
-    "_syck.Node is an abstract type. It is a base type for _syck.Scalar,\n"
+    "_syck.Node is an abstract type. It is the base type for _syck.Scalar,\n"
     "_syck.Seq, and _syck.Map. You cannot create an instance of _syck.Node\n"
     "directly. You may use _syck.Node for type checking or subclassing.\n");
 
@@ -219,7 +219,7 @@ PyDoc_STRVAR(PySyckScalar_doc,
     "Scalar(value='', tag=None, style=None, indent=0, width=0, chomp=None)\n"
     "      -> a Scalar node\n\n"
     "_syck.Scalar represents a scalar node in Syck parser and emitter\n"
-    "graphs. A scalar node points to a single string value.\n");
+    "trees. A scalar node points to a single string value.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -548,7 +548,7 @@ static PyTypeObject PySyckScalar_Type = {
 PyDoc_STRVAR(PySyckSeq_doc,
     "Seq(value=[], tag=None, inline=False) -> a Seq node\n\n"
     "_syck.Seq represents a sequence node in Syck parser and emitter\n"
-    "graphs. A sequence node points to an ordered set of subnodes.\n");
+    "trees. A sequence node points to an ordered set of subnodes.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -717,9 +717,9 @@ static PyTypeObject PySyckSeq_Type = {
  ****************************************************************************/
 
 PyDoc_STRVAR(PySyckMap_doc,
-    "Map(value='', tag=None, inline=False) -> a Map node\n\n"
+    "Map(value={}, tag=None, inline=False) -> a Map node\n\n"
     "_syck.Map represents a mapping node in Syck parser and emitter\n"
-    "graphs. A mapping node points to an unordered collections of pairs.\n");
+    "trees. A mapping node points to an unordered collections of pairs.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -832,7 +832,7 @@ static PyGetSetDef PySyckMap_getsetters[] = {
     {"kind", (getter)PySyckNode_getkind, NULL,
         PyDoc_STR("the node kind, always 'map', read-only"), &PySyck_MapKind},
     {"value", (getter)PySyckNode_getvalue, (setter)PySyckMap_setvalue,
-        PyDoc_STR("the node value, a mapping"), NULL},
+        PyDoc_STR("the node value, a list of pairs or a dictionary"), NULL},
     {"tag", (getter)PySyckNode_gettag, (setter)PySyckNode_settag,
         PyDoc_STR("the node tag, a string or None"), NULL},
     {"anchor", (getter)PySyckNode_getanchor, (setter)PySyckNode_setanchor,
@@ -892,7 +892,7 @@ PyDoc_STRVAR(PySyckParser_doc,
     "Parser(source, implicit_typing=True, taguri_expansion=True)\n"
     "      -> a Parser object\n\n"
     "_syck.Parser is a low-lever wrapper of the Syck parser. It parses\n"
-    "a YAML stream and produces a graph of Nodes.\n");
+    "a YAML stream and produces a tree of Nodes.\n");
 
 typedef struct {
     PyObject_HEAD
@@ -1016,7 +1016,7 @@ PySyckParser_geteof(PySyckParserObject *self, void *closure)
 
 static PyGetSetDef PySyckParser_getsetters[] = {
     {"source", (getter)PySyckParser_getsource, NULL,
-        PyDoc_STR("IO source, a string or file-like object"), NULL},
+        PyDoc_STR("IO source, a string or a file-like object"), NULL},
     {"implicit_typing", (getter)PySyckParser_getimplicit_typing, NULL,
         PyDoc_STR("implicit typing of builtin YAML types"), NULL},
     {"taguri_expansion", (getter)PySyckParser_gettaguri_expansion, NULL,
@@ -1252,7 +1252,8 @@ PySyckParser_parse(PySyckParserObject *self)
     PyObject *value;
 
     if (self->parsing) {
-        PyErr_SetString(PyExc_RuntimeError, "do not call Parser.parse while it is already parsing");
+        PyErr_SetString(PyExc_RuntimeError,
+                "do not call Parser.parse while it is already running");
         return NULL;
     }
 
@@ -1291,8 +1292,9 @@ PySyckParser_parse(PySyckParserObject *self)
 
 PyDoc_STRVAR(PySyckParser_parse_doc,
     "parse() -> the root Node object\n\n"
-    "Parses the source and returns the next document. On EOF, returns None\n"
-    "and sets the 'eof' attribute on.\n");
+    "Parses the source and returns the root of the Node tree. Call it\n"
+    "several times to retrieve all documents from the source. On EOF,\n"
+    "returns None and sets the 'eof' attribute on.\n");
 
 static PyMethodDef PySyckParser_methods[] = {
     {"parse",  (PyCFunction)PySyckParser_parse,
@@ -1347,9 +1349,10 @@ static PyTypeObject PySyckParser_Type = {
  ****************************************************************************/
 
 PyDoc_STRVAR(PySyckEmitter_doc,
-    "Emitter(output, headless=False, use_header=True, explicit_typing=True,"
-    "        style=None, best_width=80, indent=2) -> an Emitter object\n\n"
-    "_syck.Emitter is a low-lever wrapper of the Syck emitter. It emit\n"
+    "Emitter(output, headless=False, use_header=False, use_version=False,\n"
+    "        explicit_typing=True, style=None, best_width=80, indent=2)\n"
+    "                -> an Emitter object\n\n"
+    "_syck.Emitter is a low-lever wrapper of the Syck emitter. It emits\n"
     "a tree of Nodes into a YAML stream.\n");
 
 typedef struct {
@@ -1529,9 +1532,9 @@ static PyGetSetDef PySyckEmitter_getsetters[] = {
     {"headless", (getter)PySyckEmitter_getheadless, NULL,
         PyDoc_STR("headerless document flag"), NULL},
     {"use_header", (getter)PySyckEmitter_getuse_header, NULL,
-        PyDoc_STR("force header"), NULL},
+        PyDoc_STR("force header flag"), NULL},
     {"use_version", (getter)PySyckEmitter_getuse_version, NULL,
-        PyDoc_STR("force version"), NULL},
+        PyDoc_STR("force version flag"), NULL},
     {"explicit_typing", (getter)PySyckEmitter_getexplicit_typing, NULL,
         PyDoc_STR("explicit typing for all collections"), NULL},
     {"style", (getter)PySyckEmitter_getstyle, NULL,
@@ -1752,21 +1755,6 @@ PySyckEmitter_init(PySyckEmitterObject *self, PyObject *args, PyObject *kwds)
     Py_INCREF(output);
     self->output = output;
 
-/*
-    self->emitter = syck_new_emitter();
-    self->emitter->bonus = self;
-    self->emitter->headless = self->headless;
-    self->emitter->use_header = use_header;
-    self->emitter->use_version = use_version;
-    self->emitter->explicit_typing = explicit_typing;
-    self->emitter->style = self->style;
-    self->emitter->best_width = self->best_width;
-    self->emitter->indent = self->indent;
-
-    syck_emitter_handler(self->emitter, PySyckEmitter_node_handler);
-    syck_output_handler(self->emitter, PySyckEmitter_write_handler);
-*/
-
     self->emitting = 0;
     self->halt = 0;
 
@@ -1973,7 +1961,7 @@ PySyckEmitter_emit(PySyckEmitterObject *self, PyObject *args)
 
 PyDoc_STRVAR(PySyckEmitter_emit_doc,
     "emit(root_node) -> None\n\n"
-    "Emit the Node tree to the output.\n");
+    "Emits the Node tree to the output.\n");
 
 static PyMethodDef PySyckEmitter_methods[] = {
     {"emit",  (PyCFunction)PySyckEmitter_emit,
@@ -2032,7 +2020,45 @@ static PyMethodDef PySyck_methods[] = {
 };
 
 PyDoc_STRVAR(PySyck_doc,
-    "low-level wrapper for the Syck YAML parser and emitter");
+    "_syck is a low-level wrapper for the Syck YAML parser and emitter.\n"
+    "Do not use it directly, use the module 'syck' instead.\n");
+
+static int
+add_slotnames(PyTypeObject *type)
+{
+    PyObject *slotnames;
+    PyObject *name;
+    PyGetSetDef *getsetter;
+
+    if (!type->tp_getset) return 0;
+    if (!type->tp_dict) return 0;
+
+    slotnames = PyList_New(0);
+    if (!slotnames) return -1;
+
+    for (getsetter = type->tp_getset; getsetter->name; getsetter++) {
+        if (!getsetter->set) continue;
+        name = PyString_FromString(getsetter->name);
+        if (!name) {
+           Py_DECREF(slotnames);
+           return -1;
+        }
+        if (PyList_Append(slotnames, name) < 0) {
+            Py_DECREF(name);
+            Py_DECREF(slotnames);
+            return -1;
+        }
+        Py_DECREF(name);
+    }
+
+    if (PyDict_SetItemString(type->tp_dict, "__slotnames__", slotnames) < 0) {
+        Py_DECREF(slotnames);
+        return -1;
+    }
+
+    Py_DECREF(slotnames);
+    return 0;
+}
 
 PyMODINIT_FUNC
 init_syck(void)
@@ -2043,9 +2069,15 @@ init_syck(void)
         return;
     if (PyType_Ready(&PySyckScalar_Type) < 0)
         return;
+    if (add_slotnames(&PySyckScalar_Type) < 0)
+        return;
     if (PyType_Ready(&PySyckSeq_Type) < 0)
         return;
+    if (add_slotnames(&PySyckSeq_Type) < 0)
+        return;
     if (PyType_Ready(&PySyckMap_Type) < 0)
+        return;
+    if (add_slotnames(&PySyckMap_Type) < 0)
         return;
     if (PyType_Ready(&PySyckParser_Type) < 0)
         return;

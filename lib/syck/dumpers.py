@@ -1,3 +1,7 @@
+"""
+syck.dumpers is a high-level wrapper for the Syck YAML emitter.
+Do not use it directly, use the module 'syck' instead.
+"""
 
 import _syck
 
@@ -9,14 +13,13 @@ except ImportError:
 __all__ = ['GenericDumper', 'Dumper',
     'emit', 'dump', 'emit_documents', 'dump_documents']
 
-INF = 1e300000
-NEGINF = -INF
-NAN = INF/INF
-
-
 class GenericDumper(_syck.Emitter):
+    """
+    GenericDumper dumps native Python objects into YAML documents.
+    """
 
     def dump(self, object):
+        """Dumps the given Python object as a YAML document."""
         self.emit(self._convert(object, {}))
 
     def _convert(self, object, object_to_node):
@@ -29,11 +32,17 @@ class GenericDumper(_syck.Emitter):
                 item = node.value[index]
                 node.value[index] = self._convert(item, object_to_node)
         elif node.kind == 'map':
-            for key in node.value.keys():
-                value = node.value[key]
-                del node.value[key]
-                node.value[self._convert(key, object_to_node)] =    \
-                        self._convert(value, object_to_node)
+            if isinstance(node.value, dict):
+                for key in node.value.keys():
+                    value = node.value[key]
+                    del node.value[key]
+                    node.value[self._convert(key, object_to_node)] =    \
+                            self._convert(value, object_to_node)
+            elif isinstance(node.value, list):
+                for index in range(len(node.value)):
+                    key, value = node.value[index]
+                    node.value[index] = (self._convert(key, object_to_node),
+                            self._convert(value, object_to_node))
 #        # Workaround against a Syck bug:
 #        if node.kind == 'scalar' and node.style not in ['1quote', '2quote'] \
 #                and node.value and node.value[-1] in [' ', '\t']:
@@ -41,6 +50,7 @@ class GenericDumper(_syck.Emitter):
         return node
 
     def represent(self, object):
+        """Represents the given Python object as a 'Node'."""
         if isinstance(object, dict):
             return _syck.Map(object.copy(), tag="tag:yaml.org,2002:map")
         elif isinstance(object, list):
@@ -49,14 +59,28 @@ class GenericDumper(_syck.Emitter):
             return _syck.Scalar(str(object), tag="tag:yaml.org,2002:str")
 
     def allow_aliases(self, object):
+        """Checks whether the given object can be aliased."""
         return True
 
 class Dumper(GenericDumper):
+    """
+    Dumper dumps native Python objects into YAML documents.
+    """
 
-    def __init__(self, *args, **kwds):
-        super(Dumper, self).__init__(*args, **kwds)
+    INF = 1e300000
+    inf_value = repr(INF)
+    neginf_value = repr(-INF)
+    nan_value = repr(INF/INF)
 
     def find_representer(self, object):
+        """
+        For the given object, find a method that can represent it as a 'Node'
+        object.
+
+        If the type of the object has the form 'package.module.type',
+        find_representer() returns the method 'represent_package_module_type'.
+        If this method does not exist, it checks the base types.
+        """
         for object_type in type(object).__mro__:
             if object_type.__module__ == '__builtin__':
                 name = object_type.__name__
@@ -67,6 +91,7 @@ class Dumper(GenericDumper):
                 return getattr(self, method)
 
     def represent(self, object):
+        """Represents the given Python object as a 'Node'."""
         representer = self.find_representer(object)
         if representer:
             return representer(object)
@@ -96,16 +121,17 @@ class Dumper(GenericDumper):
 
     def represent_float(self, object):
         value = repr(object)
-        if value == repr(INF):
+        if value == self.inf_value:
             value = '.inf'
-        elif value == repr(NEGINF):
+        elif value == self.neginf_value:
             value = '-.inf'
-        elif value == repr(NAN):
+        elif value == self.nan_value:
             value = '.nan'
         return _syck.Scalar(value, tag="tag:yaml.org,2002:float")
 
     def represent_sets_Set(self, object):
         return _syck.Seq(list(object), tag="tag:yaml.org,2002:set")
+    represent_set = represent_sets_Set
 
     def represent_datetime_datetime(self, object):
         return _syck.Scalar(object.isoformat(), tag="tag:yaml.org,2002:timestamp")
@@ -120,11 +146,11 @@ class Dumper(GenericDumper):
         return _syck.Seq(list(object), tag="tag:python.yaml.org,2002:tuple")
 
     def represent_type(self, object):
-        # TODO: Python 2.2 does not provide the module name of a function
         name = '%s.%s' % (object.__module__, object.__name__)
         return _syck.Scalar('', tag="tag:python.yaml.org,2002:name:"+name)
     represent_classobj = represent_type
     represent_class = represent_type
+    # TODO: Python 2.2 does not provide the module name of a function
     represent_function = represent_type
     represent_builtin_function_or_method = represent_type
 
@@ -199,7 +225,20 @@ class Dumper(GenericDumper):
             return _syck.Map(value,
                     tag="tag:python.yaml.org,2002:apply:"+class_name)
 
+    def represent__syck_Node(self, object):
+        object_type = type(object)
+        type_name = '%s.%s' % (object_type.__module__, object_type.__name__)
+        state = []
+        if hasattr(object_type, '__slotnames__'):
+            for name in object_type.__slotnames__:
+                value = getattr(object, name)
+                if value:
+                    state.append((name, value))
+        return _syck.Map(state,
+                tag="tag:python.yaml.org,2002:object:"+type_name)
+
     def allow_aliases(self, object):
+        """Checks whether the given object can be aliased."""
         if object is None or type(object) in [int, bool, float]:
             return False
         if type(object) is str and (not object or object.isalnum()):
@@ -209,6 +248,11 @@ class Dumper(GenericDumper):
         return True
 
 def emit(node, output=None, Dumper=Dumper, **parameters):
+    """
+    Emits the given node to the output.
+
+    If output is None, returns the produced YAML document.
+    """
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -218,6 +262,11 @@ def emit(node, output=None, Dumper=Dumper, **parameters):
         return dumper.output.getvalue()
 
 def dump(object, output=None, Dumper=Dumper, **parameters):
+    """
+    Dumps the given object to the output.
+
+    If output is None, returns the produced YAML document.
+    """
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -227,6 +276,11 @@ def dump(object, output=None, Dumper=Dumper, **parameters):
         return dumper.output.getvalue()
 
 def emit_documents(nodes, output=None, Dumper=Dumper, **parameters):
+    """
+    Emits the list of nodes to the output.
+    
+    If output is None, returns the produced YAML document.
+    """
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:
@@ -237,6 +291,11 @@ def emit_documents(nodes, output=None, Dumper=Dumper, **parameters):
         return dumper.output.getvalue()
 
 def dump_documents(objects, output=None, Dumper=Dumper, **parameters):
+    """
+    Dumps the list of objects to the output.
+    
+    If output is None, returns the produced YAML document.
+    """
     if output is None:
         dumper = Dumper(StringIO.StringIO(), **parameters)
     else:

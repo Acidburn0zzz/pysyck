@@ -1,3 +1,7 @@
+"""
+syck.loaders is a high-level wrapper for the Syck YAML parser.
+Do not use it directly, use the module 'syck' instead.
+"""
 
 # Python 2.2 compatibility
 from __future__ import generators
@@ -26,8 +30,15 @@ __all__ = ['GenericLoader', 'Loader',
     'parse', 'load', 'parse_documents', 'load_documents']
 
 class GenericLoader(_syck.Parser):
+    """
+    GenericLoader constructs primitive Python objects from YAML documents.
+    """
 
     def load(self):
+        """
+        Loads a YAML document from the source and return a native Python
+        object. On EOF, returns None and set the eof attribute on.
+        """
         node = self.parse()
         if self.eof:
             return
@@ -70,15 +81,21 @@ class GenericLoader(_syck.Parser):
         return object
 
     def construct(self, node):
+        """Constructs a Python object by the given node."""
         return node.value
 
 class Merge:
+    """Represents the merge key '<<'."""
     pass
 
 class Default:
+    """Represents the default key '='."""
     pass
 
 class Loader(GenericLoader):
+    """
+    Loader constructs native Python objects from YAML documents.
+    """
 
     inf_value = 1e300000
     nan_value = inf_value/inf_value
@@ -108,6 +125,21 @@ class Loader(GenericLoader):
         pass
 
     def find_constructor(self, node):
+        """
+        Returns the contructor for generating a Python object for the given
+        node.
+
+        The node tags are mapped to constructors by the following rule:
+
+        Tag                             Constructor
+        ---                             -----------
+        tag:yaml.org,2002:type          construct_type
+        tag:python.yaml.org,2002:type   construct_python_type
+        x-private:type                  construct_private_type
+        tag:domain.tld,2002:type        construct_domain_tld_2002_type
+
+        See the method code for more details.
+        """
         parts = []
         if node.tag:
             parts = node.tag.split(':')
@@ -129,6 +161,7 @@ class Loader(GenericLoader):
             parts.pop()
 
     def construct(self, node):
+        """Constructs a Python object by the given node."""
         if node.kind == 'map' and self.merge_key in node.value:
             self.merge_maps(node)
         constructor = self.find_constructor(node)
@@ -300,7 +333,10 @@ class Loader(GenericLoader):
             slotstate = {}
             if isinstance(state, tuple) and len(state) == 2:
                 state, slotstate = state
-            object.__dict__.update(state)
+            if hasattr(object, '__dict__'):
+                object.__dict__.update(state)
+            elif state:
+                slotstate.update(state)
             for key, value in slotstate.items():
                 setattr(object, key, value)
 
@@ -348,7 +384,7 @@ def load(source, Loader=Loader, **parameters):
     return loader.load()
 
 def parse_documents(source, Loader=Loader, **parameters):
-    """Iterates over 'source' and yields the root node of each document."""
+    """Iterates over 'source' and yields the root 'Node' for each document."""
     loader = Loader(source, **parameters)
     while True:
         node = loader.parse()
@@ -357,7 +393,7 @@ def parse_documents(source, Loader=Loader, **parameters):
         yield node
 
 def load_documents(source, Loader=Loader, **parameters):
-    """Iterates over 'source' and yields the root object of each document."""
+    """Iterates over 'source' and yields the root object for each document."""
     loader = Loader(source, **parameters)
     while True:
         object = loader.load()

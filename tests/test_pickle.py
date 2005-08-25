@@ -287,6 +287,16 @@ EXTENSIONS = """
     MyMapping(1,2,3),
 ]
 
+NODES = """
+- foo
+- [bar, baz]
+"""
+
+BUGGY_NODES = """
+- foo
+- { bar: baz }
+"""
+
 class ExLoader(syck.Loader):
 
     def find_constructor(self, node):
@@ -330,4 +340,26 @@ class TestExtensions(unittest.TestCase):
         object3 = syck.load(source2, Loader=ExLoader)
         for left, right in zip(object, object3):
             self.assertEqual(left, right)
+
+class TestNodesReduce(unittest.TestCase):
+
+    def testNodesReduce(self):
+        object = syck.load(NODES)
+        nodes = syck.parse(NODES)
+        output = syck.dump(nodes)
+        print output
+        nodes2 = syck.load(output)
+        output2 = syck.emit(nodes2)
+        object2 = syck.load(output2)
+        self.assertEqual(object, object2)
+
+    def testBuggyNodesReduce(self):
+        object = syck.load(BUGGY_NODES)
+        nodes = syck.parse(BUGGY_NODES)
+        output = syck.dump(nodes)
+        print output
+        nodes2 = syck.load(output)
+        output2 = syck.emit(nodes2)
+        object2 = syck.load(output2)
+        self.assertEqual(object, object2)
 
