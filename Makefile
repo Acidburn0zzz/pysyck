@@ -4,7 +4,7 @@
 PYTHON=/usr/bin/python
 TEST=
 
-default: build
+default: build README.html
 
 build:
 	${PYTHON} setup.py build
@@ -20,4 +20,7 @@ test: build
 
 clean:
 	${PYTHON} setup.py clean -a
+
+README.html: README.txt
+	rest2html --embed-stylesheet --stylesheet-path=/usr/share/python-docutils/stylesheets/default.css README.txt README.html
 
