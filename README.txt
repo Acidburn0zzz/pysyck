@@ -21,8 +21,8 @@ provides bindings to the Python_ programming language, but they are somewhat
 limited and leak memory.
 
 PySyck_ is aimed to update the current Python bindings for Syck. The new
-bindings will provide wrappers for the Syck emitter and give access to the bare
-Parser tree. Hopefully it will not leak memory as well.
+bindings provide a wrapper for the Syck emitter and give access to YAML
+representation graphs. Hopefully it will not leak memory as well.
 
 PySyck_ may be used for various tasks, in particular, as a replacement of the
 module pickle_. Please be aware that PySyck_ is a beta-quality software and
@@ -44,8 +44,8 @@ supported to some extent.
 Installation
 ============
 
-PySyck requires Syck version 0.55 or higher. If you install it from source, unpack
-the source tarball and type::
+Please note that Syck 0.55 or higher must be installed. If you install PySyck
+from source, unpack the source tarball and type::
 
   $ python setup.py install
 
@@ -55,7 +55,8 @@ Windows binaries for Python 2.2, 2.3, and 2.4 are provided.
 Usage
 =====
 
-The documentation is still incomplete. See `the source code`_ for more details.
+The documentation is still rough and incomplete. See `the source code`_ for
+more information.
 
 .. _the source code: http://trac.xitology.org/pysyck/browser/
 
@@ -103,7 +104,7 @@ the following Python-specific tags:
 Most of these tags are self-explanatory. The tags ``!python/name:...``,
 ``!python/object:...``, ``!python/new:...``, and ``!python/apply:...`` are used
 for constructing Python functions, classes, and objects. See the sections `Use
-Python-specific tags in a YAML document`_ and `Use Python-specific tags to
+Python-specific tags in YAML documents`_ and `Use Python-specific tags to
 construct Python objects`_ for some examples.
 
 .. _the YAML types repository: http://yaml.org/type/index.html
@@ -187,8 +188,8 @@ Create several documents in a YAML stream
   >>> output = file(..., 'w')
   >>> dump_documents(objects, output)
 
-Get a representation tree of a YAML document
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Construct a representation tree of a YAML document
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -237,8 +238,8 @@ Use PySyck to display a YAML representation graph
   >>> node = parse(source)
   >>> print dump(node)
 
-Use Python-specific tags in a YAML document
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Use Python-specific tags in YAML documents
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -873,7 +874,7 @@ another bug, please submit it via `PySyck BTS`_.
 History
 =======
 
-* PySyck-0.55.1 (2005-08-..): Initial release.
+* PySyck-0.55.1 (2005-08-30): Initial release.
 
 
 Author and Copyright
