@@ -24,6 +24,10 @@ CLASSIFIERS = [
 
 from distutils.core import setup, Extension
 
+from distutils import log
+from distutils.command.build_ext import build_ext
+from distutils.errors import CCompilerError, CompileError, LinkError
+
 import sys
 if sys.version < '2.2.4':
     from distutils.dist import DistributionMetadata
@@ -31,7 +35,64 @@ if sys.version < '2.2.4':
     DistributionMetadata.download_url = None
 
 import os
-home = os.environ.get('HOME', '')
+#home = os.environ.get('HOME', '')
+
+CHECK_SYCK = """
+#include <syck.h>
+#include <stdio.h>
+int main(void) {
+    syck_free_parser(syck_new_parser());
+    syck_free_emitter(syck_new_emitter());
+    puts(SYCK_VERSION);
+    return 0;
+}
+"""
+CHECK_SYCK_PROG = './_check_syck'
+
+class PySyckBuildExt(build_ext):
+
+    def build_extensions(self):
+        if not self.force:
+            self.check_syck()
+        build_ext.build_extensions(self)
+
+    def _clean(self, *filenames):
+        for filename in filenames:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+
+    def check_syck(self):
+        prog = CHECK_SYCK_PROG
+        src = prog + '.c'
+        file(src, 'w').write(CHECK_SYCK)
+        [obj] = self.compiler.object_filenames([src])
+        log.info("checking for syck.h")
+        try:
+            self.compiler.compile([src])
+        except CompileError:
+            self._clean(src, obj)
+            raise CompileError, "syck.h is not found"
+        log.info("checking for libsyck.a")
+        try:
+            self.compiler.link_executable([obj], prog, libraries=['syck'])
+        except LinkError:
+            self._clean(src, obj, prog)
+            raise LinkError, "libsyck.a is not found"
+        if self.compiler.exe_extension:
+            prog += self.compiler.exe_extension
+        log.info("checking syck version")
+        pipe = os.popen(prog, 'r')
+        data = pipe.read().strip()
+        pipe.close()
+        version = float(data)
+        log.info("syck version: %s" % version)
+        if version < 0.55:
+            self._clean(src, obj, prog)
+            raise CCompilerError, "syck 0.55 or higher is required"
+        self._clean(src, obj, prog)
+            
 
 setup(
     name=NAME,
@@ -50,10 +111,13 @@ setup(
     packages=['syck'],
     ext_modules=[
         Extension('_syck', ['ext/_syckmodule.c'],
-            include_dirs=['../../include', '%s/include' % home, '/usr/local/include'],
-            library_dirs=['../../lib', '%s/lib' % home, '/usr/local/include'],
+#            include_dirs=['../../include', '%s/include' % home, '/usr/local/include'],
+#            library_dirs=['../../lib', '%s/lib' % home, '/usr/local/include'],
             libraries=['syck'],
         ),
     ],
+    cmdclass={
+        'build_ext': PySyckBuildExt,
+    },
 )
 
