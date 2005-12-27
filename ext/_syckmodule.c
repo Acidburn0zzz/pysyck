@@ -1029,6 +1029,8 @@ static PyGetSetDef PySyckParser_getsetters[] = {
 static SYMID
 PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
 {
+    PyGILState_STATE gs;
+
     PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
 
     SYMID index;
@@ -1039,6 +1041,8 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
 
     if (self->halt)
         return -1;
+
+    gs = PyGILState_Ensure();
 
     switch (node->kind) {
 
@@ -1098,10 +1102,12 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
         goto error;
 
     index = PyList_GET_SIZE(self->symbols);
+    PyGILState_Release(gs);
     return index;
 
 error:
     Py_XDECREF(object);
+    PyGILState_Release(gs);
     self->halt = 1;
     return -1;
 }
@@ -1109,10 +1115,14 @@ error:
 static void
 PySyckParser_error_handler(SyckParser *parser, char *str)
 {
+    PyGILState_STATE gs;
+
     PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
     PyObject *value;
 
     if (self->halt) return;
+
+    gs = PyGILState_Ensure();
 
     self->halt = 1;
 
@@ -1121,16 +1131,24 @@ PySyckParser_error_handler(SyckParser *parser, char *str)
     if (value) {
         PyErr_SetObject(PySyck_Error, value);
     }
+
+    PyGILState_Release(gs);
 }
 
 SyckNode *
 PySyckParser_bad_anchor_handler(SyckParser *parser, char *anchor)
 {
+    PyGILState_STATE gs;
+
     PySyckParserObject *self = (PySyckParserObject *)parser->bonus;
 
     if (!self->halt) {
+        gs = PyGILState_Ensure();
+
         self->halt = 1;
         PyErr_SetString(PyExc_TypeError, "recursive anchors are not implemented");
+
+        PyGILState_Release(gs);
     }
 
     return syck_alloc_str();
@@ -1139,6 +1157,8 @@ PySyckParser_bad_anchor_handler(SyckParser *parser, char *anchor)
 static long
 PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
 {
+    PyGILState_STATE gs;
+
     PySyckParserObject *self = (PySyckParserObject *)file->ptr;
 
     PyObject *value;
@@ -1154,9 +1174,14 @@ PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
     
     max_size -= skip;
 
+    gs = PyGILState_Ensure();
+
     value = PyObject_CallMethod(self->source, "read", "(i)", max_size);
     if (!value) {
         self->halt = 1;
+
+        PyGILState_Release(gs);
+
         return skip;
     }
 
@@ -1165,6 +1190,8 @@ PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
         PyErr_SetString(PyExc_TypeError, "file-like object should return a string");
         self->halt = 1;
         
+        PyGILState_Release(gs);
+
         return skip;
     }
 
@@ -1172,6 +1199,9 @@ PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
     length = PyString_GET_SIZE(value);
     if (!length) {
         Py_DECREF(value);
+
+        PyGILState_Release(gs);
+
         return skip;
     }
 
@@ -1179,6 +1209,9 @@ PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
         Py_DECREF(value);
         PyErr_SetString(PyExc_ValueError, "read returns an overly long string");
         self->halt = 1;
+
+        PyGILState_Release(gs);
+
         return skip;
     }
 
@@ -1187,6 +1220,8 @@ PySyckParser_read_handler(char *buf, SyckIoFile *file, long max_size, long skip)
     buf[length] = '\0';
 
     Py_DECREF(value);
+
+    PyGILState_Release(gs);
 
     return length;
 }
@@ -1268,7 +1303,9 @@ PySyckParser_parse(PySyckParserObject *self)
     }
 
     self->parsing = 1;
+    Py_BEGIN_ALLOW_THREADS
     index = syck_parse(self->parser)-1;
+    Py_END_ALLOW_THREADS
     self->parsing = 0;
 
     if (self->halt || self->parser->eof) {
@@ -1549,6 +1586,8 @@ static PyGetSetDef PySyckEmitter_getsetters[] = {
 static void
 PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
 {
+    PyGILState_STATE gs;
+
     PySyckEmitterObject *self = (PySyckEmitterObject *)emitter->bonus;
 
     PySyckNodeObject *node;
@@ -1562,10 +1601,13 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
 
     if (self->halt) return;
 
+    gs = PyGILState_Ensure();
+
     node = (PySyckNodeObject *)PyList_GetItem(self->symbols, id);
     if (!node) {
         PyErr_SetString(PyExc_RuntimeError, "unknown data id");
         self->halt = 1;
+        PyGILState_Release(gs);
         return;
     }
 
@@ -1573,6 +1615,7 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
         tag = PyString_AsString(node->tag);
         if (!tag) {
             self->halt = 1;
+            PyGILState_Release(gs);
             return;
         }
     }
@@ -1584,6 +1627,7 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
         if (!PyList_Check(node->value)) {
             PyErr_SetString(PyExc_TypeError, "value of _syck.Seq must be a list");
             self->halt = 1;
+            PyGILState_Release(gs);
             return;
         }
         l = PyList_GET_SIZE(node->value);
@@ -1591,11 +1635,15 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
             item = PyList_GET_ITEM(node->value, k);
             if ((index = PyDict_GetItem(self->nodes, item))) {
                 syck_emit_item(emitter, PyInt_AS_LONG(index));
-                if (self->halt) return;
+                if (self->halt) {
+                    PyGILState_Release(gs);
+                    return;
+                }
             }
             else {
                 PyErr_SetString(PyExc_RuntimeError, "sequence item is not marked");
                 self->halt = 1;
+                PyGILState_Release(gs);
                 return;
             }
         }
@@ -1614,17 +1662,22 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
                     PyErr_SetString(PyExc_TypeError,
                             "value of _syck.Map must be a list of pairs or a dictionary");
                     self->halt = 1;
+                    PyGILState_Release(gs);
                     return;
                 }
                 for (j = 0; j < 2; j++) {
                     item = PyTuple_GET_ITEM(pair, j);
                     if ((index = PyDict_GetItem(self->nodes, item))) {
                         syck_emit_item(emitter, PyInt_AS_LONG(index));
-                        if (self->halt) return;
+                        if (self->halt) {
+                            PyGILState_Release(gs);
+                            return;
+                        }
                     }
                     else {
                         PyErr_SetString(PyExc_RuntimeError, "mapping item is not marked");
                         self->halt = 1;
+                        PyGILState_Release(gs);
                         return;
                     }
                 }
@@ -1637,11 +1690,15 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
                     item = j ? value : key;
                     if ((index = PyDict_GetItem(self->nodes, item))) {
                         syck_emit_item(emitter, PyInt_AS_LONG(index));
-                        if (self->halt) return;
+                        if (self->halt) {
+                            PyGILState_Release(gs);
+                            return;
+                        }
                     }
                     else {
                         PyErr_SetString(PyExc_RuntimeError, "mapping item is not marked");
                         self->halt = 1;
+                        PyGILState_Release(gs);
                         return;
                     }
                 }
@@ -1651,6 +1708,7 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
             PyErr_SetString(PyExc_TypeError,
                     "value of _syck.Map must be a list of pairs or a dictionary");
             self->halt = 1;
+            PyGILState_Release(gs);
             return;
         }
 
@@ -1660,6 +1718,7 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
     else if (PyObject_TypeCheck((PyObject *)node, &PySyckScalar_Type)) {
         if (PyString_AsStringAndSize(node->value, &str, &len) < 0) {
             self->halt = 1;
+            PyGILState_Release(gs);
             return;
         }
         syck_emit_scalar(emitter, tag, ((PySyckScalarObject *)node)->style,
@@ -1671,16 +1730,25 @@ PySyckEmitter_node_handler(SyckEmitter *emitter, st_data_t id)
     else {
         PyErr_SetString(PyExc_TypeError, "Node instance is required");
         self->halt = 1;
+        PyGILState_Release(gs);
         return;
     }   
+    PyGILState_Release(gs);
 }
+
 static void
 PySyckEmitter_write_handler(SyckEmitter *emitter, char *buf, long len)
 {
+    PyGILState_STATE gs;
+
     PySyckEmitterObject *self = (PySyckEmitterObject *)emitter->bonus;
+
+    gs = PyGILState_Ensure();
 
     if (!PyObject_CallMethod(self->output, "write", "(s#)", buf, len))
         self->halt = 1;
+
+    PyGILState_Release(gs);
 }
 
 static int
@@ -1940,8 +2008,10 @@ PySyckEmitter_emit(PySyckEmitterObject *self, PyObject *args)
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS
     syck_emit(self->emitter, 0);
     syck_emitter_flush(self->emitter, 0);
+    Py_END_ALLOW_THREADS
 
     syck_free_emitter(self->emitter);
     self->emitter = NULL;
