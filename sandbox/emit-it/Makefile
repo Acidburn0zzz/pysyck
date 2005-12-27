@@ -1,5 +1,5 @@
 
-ALL = emit-it complex-key-bug trailing-space-bug
+ALL = emit-it complex-key-bug trailing-space-bug extra-delimiter-bug
 
 .PHONY: default clean
 
