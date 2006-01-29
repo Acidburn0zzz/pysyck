@@ -99,6 +99,21 @@ INVALID_MAP = [
     ]),
 ]
 
+COMPLEX_ITEMS = [
+    _syck.Scalar("foo"),
+    _syck.Scalar("foo", tag='x-private:complex'),
+    _syck.Scalar("foo bar baz", style='fold'),
+    _syck.Scalar("foo bar baz", style='fold', tag='x-private:complex'),
+    _syck.Seq([]),
+    _syck.Seq([], tag='x-private:complex'),
+    _syck.Seq([_syck.Scalar('alpha'), _syck.Scalar('beta'), _syck.Scalar('gamma')]),
+    _syck.Seq([_syck.Scalar('alpha'), _syck.Scalar('beta'), _syck.Scalar('gamma')], tag='x-private:complex'),
+    _syck.Seq([_syck.Scalar('alpha'), _syck.Scalar('beta'), _syck.Scalar('gamma')], inline=True, tag='x-private:complex'),
+    _syck.Map({}),
+    _syck.Map({}, tag='x-private:complex'),
+    _syck.Map([(_syck.Scalar('alpha'), _syck.Scalar('beta')), (_syck.Scalar('gamma'), _syck.Scalar('delta'))], tag='x-private:complex'),
+    _syck.Map([(_syck.Scalar('alpha'), _syck.Scalar('beta')), (_syck.Scalar('gamma'), _syck.Scalar('delta'))], inline=True, tag='x-private:complex'),
+]
 
 def strip(node, node_to_object=None):
     if node_to_object is None:
@@ -114,10 +129,11 @@ def strip(node, node_to_object=None):
             object.append(strip(item, node_to_object))
         object = tuple(object)
     elif node.kind == 'map':
-        object = {}
+        object = []
         dict_value = dict(node.value)
         for key in dict_value:
-            object[strip(key, node_to_object)] = strip(dict_value[key], node_to_object)
+            object.append((strip(key, node_to_object), strip(dict_value[key], node_to_object)))
+        object.sort()
     node_to_object[node] = object
     return object
 
@@ -282,12 +298,58 @@ class TestGarbage(unittest.TestCase):
         self.assertEqual(gc.collect(), 2)
 
 
-#class TestSyckBugWithTrailingSpace(unittest.TestCase):
-#
-#    def testSyckBugWithTrailingSpace(self):
-#        emitter = _syck.Emitter(StringIO.StringIO())
-#        emitter.emit(_syck.Scalar('foo ', tag="tag:yaml.org,2002:str"))
-#        parser = _syck.Parser(emitter.output.getvalue())
-#        self.assertEqual(parser.parse().value, 'foo ')
+class TestSyckBugWithTrailingSpace(unittest.TestCase):
 
+    def testSyckBugWithTrailingSpace(self):
+        emitter = _syck.Emitter(StringIO.StringIO())
+        emitter.emit(_syck.Scalar('foo ', tag="tag:yaml.org,2002:str"))
+        parser = _syck.Parser(emitter.output.getvalue())
+        self.assertEqual(parser.parse().value, 'foo ')
+
+
+
+class TestSyckComplexKeyBugs(unittest.TestCase):
+
+    def testEmptyCollectionKeyBug(self):
+        tree1 = _syck.Map({_syck.Map(): _syck.Scalar('foo')})
+        self._testTree(tree1)
+        tree2 = _syck.Map({_syck.Seq(): _syck.Scalar('foo')})
+        self._testTree(tree2)
+
+    def testCollectionWithTagKeyBug(self):
+        tree = _syck.Map({_syck.Seq([_syck.Scalar('foo')], tag='x-private:key'):
+                _syck.Scalar('bar')})
+        self._testTree(tree)
+
+    def testFlowCollectionKeyBug(self):
+        tree = _syck.Map({_syck.Seq([_syck.Scalar('foo')], inline=True):
+                _syck.Scalar('bar')})
+        self._testTree(tree)
+
+    def testEmptyCollectionWithAliasKeyBug(self):
+        node = _syck.Map()
+        tree = _syck.Map({node: node})
+        self._testTree(tree)
+
+    def testScalarWithAliasKeyBug(self):
+        node = _syck.Scalar('foo', tag='x-private:bug')
+        tree = _syck.Map({node: node})
+        self._testTree(tree)
+
+    def _testTree(self, tree):
+        emitter = _syck.Emitter(StringIO.StringIO())
+        emitter.emit(tree)
+        #print emitter.output.getvalue()
+        parser = _syck.Parser(emitter.output.getvalue())
+        self.assertEqual(strip(tree), strip(parser.parse()))
+
+    def testSyckBugWithComplexKeys(self):
+        broken = 0
+        for key in COMPLEX_ITEMS:
+            for value in COMPLEX_ITEMS:
+                node = _syck.Map({key: value})
+                emitter = _syck.Emitter(StringIO.StringIO())
+                emitter.emit(node)
+                parser = _syck.Parser(emitter.output.getvalue())
+                self.assertEqual(strip(node), strip(parser.parse()))
 
