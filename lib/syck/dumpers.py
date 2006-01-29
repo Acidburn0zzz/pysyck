@@ -108,7 +108,21 @@ class Dumper(GenericDumper):
         return _syck.Scalar(repr(object), tag="tag:yaml.org,2002:bool")
 
     def represent_str(self, object):
-        return _syck.Scalar(str(object), tag="tag:yaml.org,2002:str")
+        try:
+            return _syck.Scalar(object.encode('ascii'), tag="tag:yaml.org,2002:str")
+        except UnicodeDecodeError:
+            try:
+                return _syck.Scalar(unicode(object, 'utf-8').encode('utf-8'),
+                        tag="tag:python.yaml.org,2002:str")
+            except UnicodeDecodeError:
+                return _syck.Scalar(object.encode('base64'),
+                        tag="tag:yaml.org,2002:binary")
+
+    def represent_unicode(self, object):
+        try:
+            return _syck.Scalar(object.encode('ascii'), tag="tag:python.yaml.org,2002:unicode")
+        except UnicodeEncodeError:
+            return _syck.Scalar(object.encode('utf-8'), tag="tag:yaml.org,2002:str")
 
     def represent_list(self, object):
         return _syck.Seq(object[:], tag="tag:yaml.org,2002:seq")
@@ -138,9 +152,6 @@ class Dumper(GenericDumper):
 
     def represent_long(self, object):
         return _syck.Scalar(repr(object), tag="tag:python.yaml.org,2002:long")
-
-    def represent_unicode(self, object):
-        return _syck.Scalar(object.encode('utf-8'), tag="tag:python.yaml.org,2002:unicode")
 
     def represent_tuple(self, object):
         return _syck.Seq(list(object), tag="tag:python.yaml.org,2002:tuple")

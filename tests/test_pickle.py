@@ -347,7 +347,7 @@ class TestNodesReduce(unittest.TestCase):
         object = syck.load(NODES)
         nodes = syck.parse(NODES)
         output = syck.dump(nodes)
-        print output
+        #print output
         nodes2 = syck.load(output)
         output2 = syck.emit(nodes2)
         object2 = syck.load(output2)
@@ -357,7 +357,7 @@ class TestNodesReduce(unittest.TestCase):
         object = syck.load(BUGGY_NODES)
         nodes = syck.parse(BUGGY_NODES)
         output = syck.dump(nodes)
-        print output
+        #print output
         nodes2 = syck.load(output)
         output2 = syck.emit(nodes2)
         object2 = syck.load(output2)

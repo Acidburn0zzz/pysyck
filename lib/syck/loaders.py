@@ -24,10 +24,14 @@ except ImportError:
 
 import _syck
 
-import sys, re
+import sys, re, warnings
 
 __all__ = ['GenericLoader', 'Loader',
-    'parse', 'load', 'parse_documents', 'load_documents']
+    'parse', 'load', 'parse_documents', 'load_documents',
+    'NotUnicodeInputWarning']
+
+class NotUnicodeInputWarning(UserWarning):
+    pass
 
 class GenericLoader(_syck.Parser):
     """
@@ -178,6 +182,17 @@ class Loader(GenericLoader):
 
     def construct_bool_no(self, node):
         return False
+
+    def construct_str(self, node):
+        try:
+            value = unicode(node.value, 'utf-8')
+        except UnicodeDecodeError:
+            warnings.warn("scalar value is not utf-8", NotUnicodeInputWarning)
+            return node.value
+        try:
+            return value.encode('ascii')
+        except UnicodeEncodeError:
+            return value
 
     def construct_numeric_base60(self, num_type, node):
         digits = [num_type(part) for part in node.value.split(':')]
