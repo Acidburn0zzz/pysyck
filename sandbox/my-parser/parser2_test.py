@@ -2,6 +2,15 @@
 import unittest
 import parser2
 
+EX99 = r"""
+key:
+value
+"""
+
+TOKENS99 = """
+Should produce error.
+"""
+
 EX1 = r"""
 - Mark McGwire
 - Sammy Sosa
