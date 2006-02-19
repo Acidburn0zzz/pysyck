@@ -73,13 +73,15 @@ class PySyckBuildExt(build_ext):
             self.compiler.compile([src])
         except CompileError:
             self._clean(src, obj)
-            raise CompileError, "syck.h is not found"
+            raise CompileError, "syck.h is not found, " \
+                    "try to uncomment the include_dirs parameter in setup.cfg"
         log.info("checking for libsyck.a")
         try:
             self.compiler.link_executable([obj], prog, libraries=['syck'])
         except LinkError:
             self._clean(src, obj, prog)
-            raise LinkError, "libsyck.a is not found"
+            raise LinkError, "libsyck.a is not found, " \
+                    "try to uncomment the library_dirs parameter in setup.cfg"
         if self.compiler.exe_extension:
             prog += self.compiler.exe_extension
         log.info("checking syck version")
