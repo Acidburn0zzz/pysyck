@@ -11,9 +11,11 @@ SIMPLE = """
 - !python/int 123
 - !python/long 12345678901234567890
 - !python/float 123.456
-- !python/float 123.4560000001
+- !python/float 123456e-3
+- !python/complex 1.0
+- !python/complex 0.0+1.0j
 - !python/str foo bar
-- !python/unicode FOO ФУ bar бар
+- !python/unicode FOO ФУ bar ба
 - !python/list [1, 2, 3]
 - !python/tuple [foo, bar]
 - !python/dict {foo: bar}
@@ -24,9 +26,11 @@ SIMPLE = """
     123,
     12345678901234567890L,
     123.456,
-    123.4560000001,
+    123.456,
+    1+0j,
+    1j,
     'foo bar',
-    unicode('FOO ФУ bar бар', 'utf-8'),
+    unicode('FOO ФУ bar ба', 'utf-8'),
     [1, 2, 3],
     ('foo', 'bar'),
     {'foo': 'bar'},
@@ -74,6 +78,15 @@ NAMES = """
     type,
     object,
 ]
+
+import sys, unittest, encodings.cp1251, os.path
+
+MODULES = """
+- !python/module:sys
+- !python/module:unittest
+- !python/module:encodings.cp1251
+- !python/module:os.path
+""", [sys, unittest, encodings.cp1251, os.path]
 
 class AnObject(object):
 
@@ -244,6 +257,9 @@ class TestPickle(unittest.TestCase):
 
     def testNames(self):
         self._testPickle(NAMES)
+
+    def testModules(self):
+        self._testPickle(MODULES)
 
     def testObjects(self):
         self._testPickle(OBJECTS)

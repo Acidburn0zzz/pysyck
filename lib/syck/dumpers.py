@@ -143,6 +143,13 @@ class Dumper(GenericDumper):
             value = '.nan'
         return _syck.Scalar(value, tag="tag:yaml.org,2002:float")
 
+    def represent_complex(self, object):
+        if object.real != 0.0:
+            value = '%s+%sj' % (repr(object.real), repr(object.imag))
+        else:
+            value = '%sj' % repr(object.imag)
+        return _syck.Scalar(value, tag="tag:python.yaml.org,2002:complex")
+
     def represent_sets_Set(self, object):
         return _syck.Seq(list(object), tag="tag:yaml.org,2002:set")
     represent_set = represent_sets_Set
@@ -164,6 +171,9 @@ class Dumper(GenericDumper):
     # TODO: Python 2.2 does not provide the module name of a function
     represent_function = represent_type
     represent_builtin_function_or_method = represent_type
+
+    def represent_module(self, object):
+        return _syck.Scalar('', tag="tag:python.yaml.org,2002:module:"+object.__name__)
 
     def represent_instance(self, object):
         cls = object.__class__

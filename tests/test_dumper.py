@@ -15,16 +15,16 @@ except:
     datetime = _datetime()
 
 try:
-    import sets
+    Set = set
 except:
-    class _sets:
-        def Set(self, items):
+    try:
+        from sets import Set
+    except ImportError:
+        def Set(items):
             set = {}
             for items in items:
                 set[items] = None
             return set
-    sets = _sets()
-
 
 EXAMPLE = {
     'foo': 'bar',
@@ -72,7 +72,7 @@ SCALARS = [
 ]
 
 COLLECTIONS = [
-    sets.Set(range(10)),
+    Set(range(10)),
 ]
 
 class TestOutput(unittest.TestCase):

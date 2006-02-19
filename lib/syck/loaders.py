@@ -12,15 +12,16 @@ except ImportError:
     pass
 
 try:
-    import sets
-except ImportError:
-    class _sets:
-        def Set(self, items):
+    Set = set
+except:
+    try:
+        from sets import Set
+    except ImportError:
+        def Set(items):
             set = {}
             for items in items:
                 set[items] = None
             return set
-    sets = _sets()
 
 import _syck
 
@@ -287,7 +288,7 @@ class Loader(GenericLoader):
         return pairs
 
     def construct_set(self, node):
-        return sets.Set(node.value)
+        return Set(node.value)
 
     def construct_python_none(self, node):
         return None
@@ -303,6 +304,9 @@ class Loader(GenericLoader):
 
     def construct_python_float(self, node):
         return float(node.value)
+
+    def construct_python_complex(self, node):
+        return complex(node.value)
 
     def construct_python_str(self, node):
         return str(node.value)
@@ -357,6 +361,11 @@ class Loader(GenericLoader):
 
     def construct_python_name(self, node):
         return self.find_python_object(node)
+
+    def construct_python_module(self, node):
+        module_name = node.tag.split(':')[3]
+        __import__(module_name)
+        return sys.modules[module_name]
 
     def construct_python_object(self, node):
         cls = self.find_python_object(node)

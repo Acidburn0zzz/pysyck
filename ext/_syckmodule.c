@@ -2135,6 +2135,8 @@ init_syck(void)
 {
     PyObject *m;
 
+    PyEval_InitThreads();   /* Fix segfault for Python 2.3 */
+
     if (PyType_Ready(&PySyckNode_Type) < 0)
         return;
     if (PyType_Ready(&PySyckScalar_Type) < 0)

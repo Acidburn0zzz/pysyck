@@ -15,15 +15,17 @@ except ImportError:
     pass
 
 try:
-    import sets
-except ImportError:
-    class _sets:
-        def Set(self, items):
+    Set = set
+except:
+    try:
+        from sets import Set
+    except ImportError:
+        def Set(items):
             set = {}
             for items in items:
                 set[items] = None
             return set
-    sets = _sets()
+
 
 INF = 1e300000
 NAN = INF/INF
@@ -127,7 +129,7 @@ SET = """
 baseball teams: !set { Boston Red Sox, Detroit Tigers, New York Yankees }
 """, {
 #    'baseball players': sets.Set(['Mark McGwire', 'Sammy Sosa', 'Ken Griffey']),
-    'baseball teams': sets.Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
+    'baseball teams': Set(['Boston Red Sox', 'Detroit Tigers', 'New York Yankees']),
 }
 
 ALIASES = """
