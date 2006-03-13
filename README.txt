@@ -5,7 +5,7 @@ PySyck: Python bindings for the Syck YAML parser and emitter
 
 :Author: Kirill Simonov
 :Contact: xi@resolvent.net
-:Web site: http://xitology.org/pysyck/
+:Web site: http://pyyaml.org/wiki/PySyck
 
 .. contents::
 
@@ -25,31 +25,38 @@ bindings provide a wrapper for the Syck emitter and give access to YAML
 representation graphs. Hopefully it will not leak memory as well.
 
 PySyck_ may be used for various tasks, in particular, as a replacement of the
-module pickle_. Please be aware that PySyck_ is a beta-quality software and
-is not ready yet for production use.
+module pickle_.
 
 .. _YAML: http://yaml.org/
 .. _Syck: http://whytheluckystiff.net/syck/
 .. _Python: http://python.org/
-.. _PySyck: http://xitology.org/pysyck/
+.. _PySyck: http://pyyaml.org/wiki/PySyck
 .. _pickle: http://docs.python.org/lib/module-pickle.html
+
 
 Requirements
 ============
 
-PySyck requires Syck 0.55 or higher and Python 2.3 or higher. Python 2.2 is
-supported to some extent.
+PySyck requires Syck 0.55 or higher and Python 2.3 or higher.
 
 
 Installation
 ============
 
-Please note that Syck 0.55 or higher must be installed. If you install PySyck
-from source, unpack the source tarball and type::
+Please note that Syck 0.55 or higher must be installed. We recommend to use
+Syck_ from `the Syck SVN repository`_ together with `my Syck patches`_. For
+your convenience, a tarball is provided:
+http://pyyaml.org/download/pysyck/syck-0.61+svn232+patches.tar.gz.
+
+If you install PySyck from source, unpack the source tarball and type::
 
   $ python setup.py install
 
-Windows binaries for Python 2.2, 2.3, and 2.4 are provided.
+Windows binaries for Python 2.3 and 2.4 are provided. Windows binaries are
+linked against Syck_ statically.
+
+.. _the Syck SVN repository: http://code.whytheluckystiff.net/svn/syck/trunk
+.. _my Syck patches: http://pyyaml.org/wiki/SyckPatches
 
 
 Usage
@@ -858,23 +865,36 @@ may review open bugs on `the list of active tickets`_.
 
 You may use `YAML-core mailing list`_ for discussions of PySyck_.
 
-.. _PySyck SVN repository: http://svn.xitology.org/pysyck/
-.. _PySyck BTS: http://trac.xitology.org/pysyck/newticket
-.. _the list of active tickets: http://trac.xitology.org/pysyck/report/1
+.. _PySyck SVN repository: http://svn.pyyaml.org/pysyck/
+.. _PySyck BTS: http://pyyaml.org/newticket?component=pysyck
+.. _the list of active tickets: http://pyyaml.org/query?action=view&component=pysyck&order=priority
 .. _YAML-core mailing list: http://lists.sourceforge.net/lists/listinfo/yaml-core
 
 
 Known Bugs
 ==========
 
-To many to list all of them; see `the list of active tickets`_. If you find
-another bug, please submit it via `PySyck BTS`_.
+PySyck_ does not support Unicode for real. It is a Syck_ limitation.
 
 
 History
 =======
 
+* PySyck-0.60.1 (2006-03-XX):
+
+  - ``setup.py``: check if ``syck.h`` is present, complain if it doesn't.
+  - ``ext/_syckmodule.c``: release GIL_ before calling Syck_. Note that this
+    change broke Python 2.2 compatibility.
+  - ``lib/syck/loader.py``, ``lib/syck/dumper.py``: change treatment of the
+    ``!str`` tag. Now ``!str``-tagged scalars are converted to Unicode strings
+    if they are valid UTF-8, but are not valid ASCII.
+  - Windows binaries are compiled against the latest Syck_ from
+    `the Syck SVN repository`_ with `my Syck patches`_.
+  - The site is moved to http://pyyaml.org/wiki/PySyck.
+
 * PySyck-0.55.1 (2005-08-30): Initial release.
+
+.. _GIL: http://docs.python.org/api/threads.html
 
 
 Author and Copyright
