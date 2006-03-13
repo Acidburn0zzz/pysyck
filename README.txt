@@ -65,7 +65,7 @@ Usage
 The documentation is still rough and incomplete. See `the source code`_ for
 more information.
 
-.. _the source code: http://trac.xitology.org/pysyck/browser/
+.. _the source code: http://pyyaml.org/browser/pysyck/
 
 Quick Example
 -------------
@@ -880,7 +880,7 @@ PySyck_ does not support Unicode for real. It is a Syck_ limitation.
 History
 =======
 
-* PySyck-0.60.1 (2006-03-XX):
+* PySyck-0.61.1 (2006-03-XX):
 
   - ``setup.py``: check if ``syck.h`` is present, complain if it doesn't.
   - ``ext/_syckmodule.c``: release GIL_ before calling Syck_. Note that this
