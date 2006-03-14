@@ -884,7 +884,7 @@ PySyck_ does not support Unicode for real. It is a Syck_ limitation.
 History
 =======
 
-* PySyck-0.61.1 (2006-03-XX):
+* PySyck-0.61.1 (2006-03-15):
 
   - ``setup.py``: check if ``syck.h`` is present, complain if it doesn't.
   - ``ext/_syckmodule.c``: release GIL_ before calling Syck_. Note that this
