@@ -85,6 +85,10 @@ Quick Example
   - bar
   - baz
 
+Important notice: Do not load a YAML stream from any untrusted source.
+Like ``pickle.load``, ``syck.load`` may call an arbitrary Python function.
+
+
 YAML syntax
 -----------
 
