@@ -1,6 +1,6 @@
 
 NAME = 'PySyck'
-VERSION = '0.55.1'
+VERSION = '0.61.1'
 DESCRIPTION = "Python bindings for the Syck YAML parser and emitter"
 LONG_DESCRIPTION = """\
 YAML is a data serialization format designed for human readability
@@ -11,8 +11,8 @@ AUTHOR = "Kirill Simonov"
 AUTHOR_EMAIL = 'xi@resolvent.net'
 LICENSE = "BSD"
 PLATFORMS = "Any"
-URL = "http://xitology.org/pysyck/"
-DOWNLOAD_URL = URL + "%s-%s.tar.gz" % (NAME, VERSION)
+URL = "http://pyyaml.org/wiki/PySyck"
+DOWNLOAD_URL = "http://pyyaml.org/download/pysyck/%s-%s.tar.gz" % (NAME, VERSION)
 CLASSIFIERS = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -35,7 +35,6 @@ if sys.version < '2.2.4':
     DistributionMetadata.download_url = None
 
 import os
-#home = os.environ.get('HOME', '')
 
 CHECK_SYCK = """
 #include <syck.h>
@@ -113,8 +112,8 @@ setup(
     packages=['syck'],
     ext_modules=[
         Extension('_syck', ['ext/_syckmodule.c'],
-#            include_dirs=['../../include', '%s/include' % home, '/usr/local/include'],
-#            library_dirs=['../../lib', '%s/lib' % home, '/usr/local/include'],
+#            include_dirs=[],   # do not uncomment this, edit setup.cfg instead.
+#            library_dirs=[],   # do not uncomment this, edit setup.cfg instead.
             libraries=['syck'],
         ),
     ],
