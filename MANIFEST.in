@@ -1,2 +1,2 @@
-include README.txt README.html
+include README.txt README.html PySyck.spec
 recursive-include tests *.py
