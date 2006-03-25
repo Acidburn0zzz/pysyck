@@ -1,6 +1,6 @@
 
 NAME = 'PySyck'
-VERSION = '0.61.1'
+VERSION = '0.61.2'
 DESCRIPTION = "Python bindings for the Syck YAML parser and emitter"
 LONG_DESCRIPTION = """\
 YAML is a data serialization format designed for human readability
@@ -27,12 +27,6 @@ from distutils.core import setup, Extension
 from distutils import log
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, CompileError, LinkError
-
-import sys
-if sys.version < '2.2.4':
-    from distutils.dist import DistributionMetadata
-    DistributionMetadata.classifiers = None
-    DistributionMetadata.download_url = None
 
 import os
 

@@ -22,7 +22,7 @@ limited and leak memory.
 
 PySyck_ is aimed to update the current Python bindings for Syck. The new
 bindings provide a wrapper for the Syck emitter and give access to YAML
-representation graphs. Hopefully it will not leak memory as well.
+representation graphs.
 
 PySyck_ may be used for various tasks, in particular, as a replacement of the
 module pickle_.
@@ -883,6 +883,11 @@ PySyck_ does not support Unicode for real. It is a Syck_ limitation.
 
 History
 =======
+
+* PySyck-0.61.2 (2006-03-26):
+
+  - ``ext/_syckmodule.c``: fix a leak in the parser (thanks, jbj).
+  - ``setup.py``: set the development status to Production/Stable.
 
 * PySyck-0.61.1 (2006-03-15):
 
