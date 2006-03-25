@@ -3,7 +3,7 @@ import unittest
 
 import _syck
 
-import StringIO, gc
+import StringIO, gc, sys
 
 EXAMPLE = """
 -
@@ -171,6 +171,13 @@ RECURSIVE = """
 ALIASES = """
 - &alias foo
 - *alias
+"""
+
+LEAKS = """
+- mere scalar
+- [ sequence, may, leak, too]
+- {"it's": mapping, with: many, potential: leaks}
+- {sequence: [], mapping: {}}
 """
 
 class TestAttributes(unittest.TestCase):
@@ -370,4 +377,26 @@ class TestParsingAliases(unittest.TestCase):
         parser = _syck.Parser(ALIASES)
         node = parser.parse()
         self.assert_(node.value[0] is node.value[1])
+
+class TestLeaks(unittest.TestCase):
+
+    def testLeaks(self):
+        parser = _syck.Parser(LEAKS)
+        node = parser.parse()
+        dummy = []
+        self.checkLeaks(node, dummy)
+
+    def checkLeaks(self, node, dummy):
+        self.assertEqual(sys.getrefcount(node), sys.getrefcount(dummy))
+        self.assertEqual(sys.getrefcount(node.value), 2)
+        dummy = []
+        container = [dummy]
+        if isinstance(node, _syck.Seq):
+            for item in node.value:
+                self.checkLeaks(item, dummy)
+        elif isinstance(node, _syck.Map):
+            for key in node.value:
+                self.checkLeaks(key, dummy)
+                value = node.value[key]
+                self.checkLeaks(value, dummy)
 

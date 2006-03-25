@@ -1101,6 +1101,8 @@ PySyckParser_node_handler(SyckParser *parser, SyckNode *node)
     if (PyList_Append(self->symbols, (PyObject *)object) < 0)
         goto error;
 
+    Py_DECREF(object);
+
     index = PyList_GET_SIZE(self->symbols);
     PyGILState_Release(gs);
     return index;
@@ -1320,6 +1322,7 @@ PySyckParser_parse(PySyckParserObject *self)
     }
 
     value = PyList_GetItem(self->symbols, index);
+    Py_XINCREF(value);
 
     Py_DECREF(self->symbols);
     self->symbols = NULL;

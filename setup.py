@@ -14,7 +14,7 @@ PLATFORMS = "Any"
 URL = "http://pyyaml.org/wiki/PySyck"
 DOWNLOAD_URL = "http://pyyaml.org/download/pysyck/%s-%s.tar.gz" % (NAME, VERSION)
 CLASSIFIERS = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
