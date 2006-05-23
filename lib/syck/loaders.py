@@ -79,7 +79,7 @@ class GenericLoader(_syck.Parser):
                     key_object = self._convert(key_node, node_to_object)
                     value_object = self._convert(node.value[key_node],
                             node_to_object)
-                value.append((key_object, value_object))
+                    value.append((key_object, value_object))
         node.value = value
         object = self.construct(node)
         node_to_object[node] = object

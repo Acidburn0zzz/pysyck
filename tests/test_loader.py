@@ -142,6 +142,11 @@ MUTABLE_KEY = """
 : []
 """
 
+DUPLICATE_KEY = """
+0: 0
+0: 1
+"""
+
 class TestDocuments(test_parser.TestDocuments):
 
     def _testDocuments(self, source, length):
@@ -288,3 +293,12 @@ class TestMutableKey(unittest.TestCase):
         self.assertEqual(type(document[0]), tuple)
         self.assertEqual(len(document[0]), 2)
         self.assertEqual(document[0][0], document[0][1])
+
+    def testDuplicateKey(self):
+        document = syck.load(DUPLICATE_KEY)
+        self.assertEqual(type(document), list)
+        self.assertEqual(len(document), 2)
+        self.assertEqual(len(document[0]), 2)
+        self.assertEqual(len(document[1]), 2)
+        self.assertEqual(document[0][0], document[1][0])
+
