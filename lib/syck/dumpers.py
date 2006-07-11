@@ -10,6 +10,8 @@ try:
 except ImportError:
     import StringIO
 
+import copy_reg
+
 __all__ = ['GenericDumper', 'Dumper',
     'emit', 'dump', 'emit_documents', 'dump_documents']
 
@@ -197,54 +199,41 @@ class Dumper(GenericDumper):
         return _syck.Map(value,
                 tag="tag:python.yaml.org,2002:new:"+class_name)
 
-    def represent_object(self, object): # Do you understand this? I don't.
+    def represent_object(self, object): # Borrowed from PyYAML.
         cls = type(object)
-        class_name = '%s.%s' % (cls.__module__, cls.__name__)
-        args = ()
-        state = {}
-        if cls.__reduce__ is type.__reduce__:
-            if hasattr(object, '__reduce_ex__'):
-                reduce = object.__reduce_ex__(2)
-                args = reduce[1][1:]
-            else:
-                reduce = object.__reduce__()
-            if len(reduce) > 2:
-                state = reduce[2]
-            if state is None:
-                state = {}
-            if not args and isinstance(state, dict):
-                return _syck.Map(state.copy(),
-                        tag="tag:python.yaml.org,2002:object:"+class_name)
-            if not state and isinstance(state, dict):
-                return _syck.Seq(list(args),
-                        tag="tag:python.yaml.org,2002:new:"+class_name)
-            value = {}
-            if args:
-                value['args'] = list(args)
-            if state or not isinstance(state, dict):
-                value['state'] = state
-            return _syck.Map(value,
-                    tag="tag:python.yaml.org,2002:new:"+class_name)
-        else:
+        if cls in copy_reg.dispatch_table:
+            reduce = copy_reg.dispatch_table[cls](object)
+        elif hasattr(object, '__reduce_ex__'):
+            reduce = object.__reduce_ex__(2)
+        elif hasattr(object, '__reduce__'):
             reduce = object.__reduce__()
-            cls = reduce[0]
-            class_name = '%s.%s' % (cls.__module__, cls.__name__)
-            args = reduce[1]
-            state = None
-            if len(reduce) > 2:
-                state = reduce[2]
-            if state is None:
-                state = {}
-            if not state and isinstance(state, dict):
-                return _syck.Seq(list(args),
-                        tag="tag:python.yaml.org,2002:apply:"+class_name)
-            value = {}
-            if args:
-                value['args'] = list(args)
-            if state or not isinstance(state, dict):
-                value['state'] = state
-            return _syck.Map(value,
-                    tag="tag:python.yaml.org,2002:apply:"+class_name)
+        else:
+            raise RuntimeError("cannot dump object: %r" % object)
+        reduce = (list(reduce)+[None]*3)[:3]
+        function, args, state = reduce
+        args = list(args)
+        if state is None:
+            state = {}
+        if function.__name__ == '__newobj__':
+            function = args[0]
+            args = args[1:]
+            tag = 'tag:python.yaml.org,2002:new:'
+            newobj = True
+        else:
+            tag = 'tag:python.yaml.org,2002:apply:'
+            newobj = False
+        function_name = '%s.%s' % (function.__module__, function.__name__)
+        if not args and isinstance(state, dict) and newobj:
+            return _syck.Map(state.copy(),
+                    'tag:python.yaml.org,2002:object:'+function_name)
+        if isinstance(state, dict) and not state:
+            return _syck.Seq(args, tag+function_name)
+        value = {}
+        if args:
+            value['args'] = args
+        if state or not isinstance(state, dict):
+            value['state'] = state
+        return _syck.Map(value, tag+function_name)
 
     def represent__syck_Node(self, object):
         object_type = type(object)
