@@ -240,17 +240,15 @@ class Loader(GenericLoader):
     def construct_timestamp(self, node):
         match = self.timestamp_expr.match(node.value)
         values = match.groupdict()
+        if values['micro']:
+            values['micro'] = values['micro'].zfill(6)
         for key in values:
             if values[key]:
                 values[key] = int(values[key])
             else:
                 values[key] = 0
-        micro = values['micro']
-        if micro:
-            while 10*micro < 1000000:
-                micro *= 10
         stamp = datetime.datetime(values['year'], values['month'], values['day'],
-                values['hour'], values['minute'], values['second'], micro)
+                values['hour'], values['minute'], values['second'], values['micro'])
         diff = datetime.timedelta(hours=values['zhour'], minutes=values['zminute'])
         return stamp-diff
     construct_timestamp_ymd = construct_timestamp
